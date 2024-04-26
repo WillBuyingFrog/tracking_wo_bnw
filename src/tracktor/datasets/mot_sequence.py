@@ -95,10 +95,12 @@ class MOTSequence(Dataset):
         if osp.exists(gt_file):
             with open(gt_file, "r") as inf:
                 reader = csv.reader(inf, delimiter=',')
+                # print(f'Reading file {gt_file}')
                 for row in reader:
                     # class person, certainity 1, visibility >= 0.25
                     if int(row[6]) == 1 and int(row[7]) == 1 and float(row[8]) >= self._vis_threshold:
                         # Make pixel indexes 0-based, should already be 0-based (or not)
+                        # print(f'Reading {row}')
                         x1 = int(row[2]) - 1
                         y1 = int(row[3]) - 1
                         # This -1 accounts for the width (width of 1 x1=x2)

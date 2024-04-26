@@ -42,6 +42,11 @@ class Tracker:
         self.im_index = 0
         self.results = {}
 
+        # TODO 增加中央凹区域相关参数
+        # 包括：检测中央凹区域的目标检测器
+        #       中央凹区域长宽
+
+
     def reset(self, hard=True):
         self.tracks = []
         self.inactive_tracks = []
@@ -283,6 +288,17 @@ class Tracker:
             dets = blob['dets'].squeeze(dim=0)
             if dets.nelement() > 0:
                 boxes, scores = self.obj_detect.predict_boxes(dets)
+                # TODO 先默认选定的中央凹区域为原图中心1/4位置
+                
+                # 截取出给定中央凹区域tlwh对应的原始图像内容
+
+                # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
+
+                # 获得经过变换的所有中央凹区域目标boxes
+
+                # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
+
+                
             else:
                 boxes = scores = torch.zeros(0).cuda()
         else:

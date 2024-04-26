@@ -64,7 +64,7 @@ Markdown==3.3.3
 MarkupSafe==1.1.1
 matlab==0.1
 matlab-kernel==0.16.11
-matlabengineforpython===R2021a
+# matlabengineforpython===R2021a
 matplotlib==3.1.1
 mccabe==0.6.1
 metakernel==0.27.5
@@ -77,7 +77,7 @@ nbconvert==5.6.1
 nbformat==4.4.0
 networkx==2.5.1
 notebook==6.0.2
-numpy==1.21.3
+numpy
 oauthlib==3.1.0
 opencv-python==4.0.1.24
 opt-einsum==3.3.0
@@ -110,7 +110,7 @@ pytest-benchmark==3.4.1
 python-dateutil==2.8.1
 pytz==2019.3
 PyWavelets==1.1.1
-PyYAML==5.1.2
+PyYAML
 pyzmq==18.1.1
 qtconsole==4.5.5
 requests==2.25.1
@@ -141,7 +141,7 @@ tornado==6.0.4
 tqdm==4.38.0
 traitlets==4.3.3
 typed-ast==1.4.1
-typing-extensions==3.10.0.2
+typing-extensions
 urllib3==1.26.3
 wcwidth==0.1.9
 webencodings==0.5.1
