@@ -10,13 +10,17 @@ from torchvision.ops.boxes import clip_boxes_to_image, nms
 from .utils import (bbox_overlaps, get_center, get_height, get_width, make_pos,
                     warp_pos)
 
+import os
+from PIL import Image
+
 
 class Tracker:
     """The main tracking file, here is where magic happens."""
     # only track pedestrian
     cl = 1
 
-    def __init__(self, obj_detect, reid_network, tracker_cfg):
+    def __init__(self, obj_detect, reid_network, tracker_cfg, 
+                 origin_obj_detect=None, fovea_optimizer=None):
         self.obj_detect = obj_detect
         self.reid_network = reid_network
         self.detection_person_thresh = tracker_cfg['detection_person_thresh']
@@ -46,6 +50,11 @@ class Tracker:
         # 包括：检测中央凹区域的目标检测器
         #       中央凹区域长宽
 
+
+
+        # 在下采样的实验模式下，检测原图指定区域目标的模型
+        self.origin_obj_detect = origin_obj_detect
+        self.fovea_optimizer = fovea_optimizer
 
     def reset(self, hard=True):
         self.tracks = []
@@ -278,6 +287,13 @@ class Tracker:
             # add current position to last_pos list
             t.last_pos.append(t.pos.clone())
 
+        # 加载原图
+        origin_img_path = blob['origin_img_path']
+        if os.path.exists(origin_img_path):
+            origin_img = Image.open(origin_img_path).convert("RGB")
+        else:
+            print(f'origin_img_path: {origin_img_path} not exists')
+
         ###########################
         # Look for new detections #
         ###########################
@@ -413,7 +429,7 @@ class Tracker:
         return self.results
 
 
-class Track(object):
+class Track(object): 
     """This class contains all necessary for every individual track."""
 
     def __init__(self, pos, score, track_id, features, inactive_patience, max_features_num, mm_steps):

@@ -58,6 +58,9 @@ class MOTSequence(Dataset):
         sample['gt'] = data['gt']
         sample['vis'] = data['vis']
 
+        # 返回原图目录
+        sample['origin_img_path'] = data['origin_im_path']
+
         return sample
 
     def _sequence(self):
@@ -79,6 +82,10 @@ class MOTSequence(Dataset):
 
         imDir = osp.join(seq_path, imDir)
         gt_file = osp.join(seq_path, 'gt', 'gt.txt')
+
+        # 原始分辨率图像存放位置
+        # 默认为self._mot_dir同一级的MOT17-origin文件夹
+        origin_imDir = osp.join(osp.dirname(self._mot_dir), 'MOT17-origin', seq_name)
 
         total = []
 
@@ -130,8 +137,11 @@ class MOTSequence(Dataset):
         for i in range(1, seqLength + 1):
             im_path = osp.join(imDir, f"{i:06d}.jpg")
 
+            origin_im_path = osp.join(origin_imDir, f"{i:06d}.jpg")
+
             sample = {'gt':boxes[i],
                       'im_path':im_path,
+                      'origin_im_path': origin_im_path,
                       'vis':visibility[i],
                       'dets':dets[i],}
 
