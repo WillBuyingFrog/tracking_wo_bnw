@@ -85,7 +85,10 @@ class MOTSequence(Dataset):
 
         # 原始分辨率图像存放位置
         # 默认为self._mot_dir同一级的MOT17-origin文件夹
-        origin_imDir = osp.join(osp.dirname(self._mot_dir), 'MOT17-origin', seq_name)
+        if seq_name in self._train_folders:
+            origin_imDir = osp.join(osp.dirname(self._mot_dir), 'MOT17-origin', 'train', seq_name, config['Sequence']['imDir'])
+        else:
+            origin_imDir = osp.join(osp.dirname(self._mot_dir), 'MOT17-origin', 'test', seq_name, config['Sequence']['imDir'])
 
         total = []
 

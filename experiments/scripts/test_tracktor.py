@@ -86,8 +86,10 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
     _log.info("Initializing object detector(s).")
 
     obj_detects = []
+    origin_obj_detects = []
     for obj_detect_model in obj_detect_models:
         obj_detect = FRCNN_FPN(num_classes=2)
+        origin_obj_detect = FRCNN_FPN(num_classes=2)
 
         obj_detect_state_dict = torch.load(
             obj_detect_model, map_location=lambda storage, loc: storage)
@@ -95,11 +97,15 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             obj_detect_state_dict = obj_detect_state_dict['model']
 
         obj_detect.load_state_dict(obj_detect_state_dict)
+        origin_obj_detect.load_state_dict(obj_detect_state_dict)
         obj_detects.append(obj_detect)
+        origin_obj_detects.append(origin_obj_detect)
 
         obj_detect.eval()
+        origin_obj_detect.eval()
         if torch.cuda.is_available():
             obj_detect.cuda()
+            origin_obj_detect.cuda()
 
     # reid
     _log.info("Initializing reID network(s).")
@@ -120,13 +126,15 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
         tracker = OracleTracker(
             obj_detect, reid_network, tracker, oracle)
     else:
-        tracker = Tracker(obj_detect, reid_network, tracker)
+
+        tracker = Tracker(obj_detect, reid_network, tracker,
+                          origin_obj_detect=origin_obj_detect)
 
     time_total = 0
     num_frames = 0
     mot_accums = []
 
-    for seq, obj_detect, reid_network in zip(dataset, obj_detects, reid_networks):
+    for seq, obj_detect, origin_obj_detect, reid_network in zip(dataset, obj_detects, origin_obj_detects, reid_networks):
         tracker.obj_detect = obj_detect
         tracker.reid_network = reid_network
         tracker.reset()

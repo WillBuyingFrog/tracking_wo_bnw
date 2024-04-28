@@ -6,12 +6,17 @@ import torch
 from scipy.optimize import linear_sum_assignment
 from torchreid import metrics
 from torchvision.ops.boxes import clip_boxes_to_image, nms
+from torchvision.transforms import ToTensor, ToPILImage
 
 from .utils import (bbox_overlaps, get_center, get_height, get_width, make_pos,
                     warp_pos)
 
+from .frog1.fovea_optimize import optimize
+from .frog1.fovea_obj_detect import get_processed_boxes
+
 import os
 from PIL import Image
+from PIL import ImageDraw
 
 
 class Tracker:
@@ -53,8 +58,10 @@ class Tracker:
 
 
         # 在下采样的实验模式下，检测原图指定区域目标的模型
+        self.fovea_switch = tracker_cfg['frog_fovea']
         self.origin_obj_detect = origin_obj_detect
         self.fovea_optimizer = fovea_optimizer
+        self.fovea_scale = tracker_cfg['frog_fovea_factor']
 
     def reset(self, hard=True):
         self.tracks = []
@@ -288,11 +295,13 @@ class Tracker:
             t.last_pos.append(t.pos.clone())
 
         # 加载原图
-        origin_img_path = blob['origin_img_path']
-        if os.path.exists(origin_img_path):
-            origin_img = Image.open(origin_img_path).convert("RGB")
-        else:
-            print(f'origin_img_path: {origin_img_path} not exists')
+        if self.fovea_switch:
+            origin_img_path = blob['origin_img_path'][0]
+            if os.path.exists(origin_img_path):
+                origin_img = Image.open(origin_img_path).convert("RGB")
+                origin_img = ToTensor()(origin_img)
+            else:
+                print(f'origin_img_path: {origin_img_path} not exists')
 
         ###########################
         # Look for new detections #
@@ -304,16 +313,67 @@ class Tracker:
             dets = blob['dets'].squeeze(dim=0)
             if dets.nelement() > 0:
                 boxes, scores = self.obj_detect.predict_boxes(dets)
-                # TODO 先默认选定的中央凹区域为原图中心1/4位置
-                
-                # 截取出给定中央凹区域tlwh对应的原始图像内容
+                if self.fovea_switch:
+                    # TODO 实现基于模拟退火优化中央凹区域的效果
+                    # 目前先默认中央凹区域永远是最中间的部分
+                    img_h, img_w = origin_img.size(1), origin_img.size(2)
+                    fovea_x, fovea_y = img_w // 4, img_h // 4
+                    fovea_w, fovea_h = img_w // 2, img_h // 2
+                    fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
+                    # print(f'fovea_pos: {fovea_pos}')
+                    
+                    # 截取出给定中央凹区域tlwh对应的原始图像内容
+                    # origin_img 是一个pytorch的tensor张量
+                    fovea_img = origin_img[:, fovea_y:fovea_y+fovea_h, fovea_x:fovea_x+fovea_w]
+                    _fovea_img = torch.stack([fovea_img], dim=0)
+                    # print(f'origin_img shape: {origin_img.shape}, fovea_img shape: {fovea_img.shape}')
 
-                # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
+                    # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
+                    fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
 
-                # 获得经过变换的所有中央凹区域目标boxes
+                    # 将所有中央凹区域得到的目标boxes转换到blob['img']上
+                    processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
+                                                    fovea_scale=self.fovea_scale)
 
-                # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
+                    # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
+                    boxes = torch.cat([boxes, processed_fovea_boxes], dim=0)
+                    scores = torch.cat([scores, fovea_scores], dim=0)
 
+                    # 将中央凹区域图像的检测锚框画到中央凹区域上并保存
+                    # fovea_img是一个经过PIL Image库读入，后又转成pytorch tensor的图像
+                    # 使用cv2相关的库函数将检测锚框画到中央凹区域上，再以{当前图片的原文件名}_fovea_result.jpg保存
+                    
+                    # fovea_img_pil = ToPILImage()(fovea_img)
+                    # draw = ImageDraw.Draw(fovea_img_pil)
+                    # for box in fovea_boxes:
+                    #     top_left = (box[0], box[1])
+                    #     bottom_right = (box[2], box[3])
+                    #     draw.rectangle([top_left, bottom_right], outline=(255, 165, 0), width=2)
+                    # fovea_result_path = f'debug/{os.path.basename(origin_img_path)}_fovea_result.jpg'
+                    # fovea_img_pil.save(fovea_result_path)
+
+                    # # 将转换后的检测锚框画到blob['img']上并保存
+                    # peripheral_img_pil = ToPILImage()(blob['img'][0])
+                    # draw = ImageDraw.Draw(peripheral_img_pil)
+                    # for box in processed_fovea_boxes:
+                    #     top_left = (box[0], box[1])
+                    #     bottom_right = (box[2], box[3])
+                    #     draw.rectangle([top_left, bottom_right], outline=(255, 165, 0), width=1)
+                    # # 画出中央凹区域框
+                    # top_left = (fovea_pos[0] / 5.0, fovea_pos[1] / 5.0) 
+                    # bottom_right = ((fovea_pos[0] + fovea_pos[2]) / 5.0, (fovea_pos[1] + fovea_pos[3]) / 5.0)
+                    # draw.rectangle([top_left, bottom_right], outline=(255, 0, 0), width=2)
+                    # peripheral_result_path = f'debug/{os.path.basename(origin_img_path)}_peripheral_result.jpg'
+                    # peripheral_img_pil.save(peripheral_result_path)
+                    
+                    # # 输出fovea_boxes中二个box的详细信息
+                    # print(f'fovea_boxes[1]: {fovea_boxes[1]}')
+                    # # 输出经过变换的中央凹区域boxes的第二个box的详细信息
+                    # print(f'processed_fovea_boxes[1]: {processed_fovea_boxes[1]}')
+                    # # 输出fovea_pos, self.fovea_scale
+                    # print(f'fovea_pos: {fovea_pos}, fovea_scale: {self.fovea_scale}')
+                    # # 输出经过变换后的中央凹区域坐标
+                    # print(f'fovea region in peripheral pic: {top_left}, {bottom_right}')
                 
             else:
                 boxes = scores = torch.zeros(0).cuda()

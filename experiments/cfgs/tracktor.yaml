@@ -67,4 +67,12 @@ tracker:
   # How much IoU do track and image need to be considered for matching
   reid_iou_threshold: 0.0
 
+
+  # Frog's foveation settings
+  
+  # Foveation switch
+  frog_fovea: True
+  # Compression rate of the origin image
+  frog_fovea_factor: [5.0, 5.0]
+
 oracle: null
