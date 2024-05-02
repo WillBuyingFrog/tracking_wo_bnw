@@ -8,7 +8,6 @@ import numpy as np
 import sacred
 import torch
 import yaml
-import random
 from sacred import Experiment
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -31,7 +30,7 @@ mm.lap.default_solver = 'lap'
 
 ex = Experiment()
 
-ex.add_config('experiments/cfgs/tracktor.yaml')
+ex.add_config('experiments/cfgs/tracktor_origin.yaml')
 ex.add_named_config('oracle', 'experiments/cfgs/oracle_tracktor.yaml')
 
 
@@ -59,7 +58,6 @@ def add_reid_config(reid_models, obj_detect_models, dataset):
 def main(module_name, name, seed, obj_detect_models, reid_models,
          tracker, oracle, dataset, load_results, frame_range, interpolate,
          write_images, _config, _log, _run):
-    
     sacred.commands.print_config(_run)
 
     # set all seeds
@@ -68,7 +66,6 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
         torch.cuda.manual_seed(seed)
     np.random.seed(seed)
     torch.backends.cudnn.deterministic = True
-    random.seed(seed)
 
     output_dir = osp.join(get_output_dir(module_name), name)
     sacred_config = osp.join(output_dir, 'sacred_config.yaml')
@@ -141,10 +138,6 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
         tracker.obj_detect = obj_detect
         tracker.reid_network = reid_network
         tracker.reset()
-
-        # 初始化tracker的中央凹优化部分
-        print(f'img_width: {seq.im_width}, img_height: {seq.im_height}')
-        tracker.init_fovea_optimizer(img_width=seq.im_width, img_height=seq.im_height)
 
         _log.info(f"Tracking: {seq}")
 

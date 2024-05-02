@@ -59,7 +59,7 @@ class Fovea_FRCNN_FPN(FasterRCNN):
 #       要求所有boxes均已经转换到缩小后原图的坐标位置
 
 
-def get_processed_boxes(fovea_boxes, fovea_pos, fovea_scale=[3.0, 3.0]):
+def get_processed_boxes(fovea_boxes, fovea_pos, compress_ratio=[3.0, 3.0]):
 
     fovea_boxes = fovea_boxes.cpu()
 
@@ -68,10 +68,10 @@ def get_processed_boxes(fovea_boxes, fovea_pos, fovea_scale=[3.0, 3.0]):
     for fovea_box in fovea_boxes:
         
         processed_box = np.zeros_like(fovea_box)
-        processed_box[0] = (fovea_pos[0] + fovea_box[0]) / fovea_scale[0]
-        processed_box[1] = (fovea_pos[1] + fovea_box[1]) / fovea_scale[1]
-        processed_box[2] = (fovea_pos[0] + fovea_box[2]) / fovea_scale[0]
-        processed_box[3] = (fovea_pos[1] + fovea_box[3]) / fovea_scale[1]
+        processed_box[0] = (fovea_pos[0] + fovea_box[0]) / compress_ratio[0]
+        processed_box[1] = (fovea_pos[1] + fovea_box[1]) / compress_ratio[1]
+        processed_box[2] = (fovea_pos[0] + fovea_box[2]) / compress_ratio[0]
+        processed_box[3] = (fovea_pos[1] + fovea_box[3]) / compress_ratio[1]
         processed_boxes.append(processed_box)
     
     # 将origin_boxes转成pytorch tensor

@@ -11,8 +11,9 @@ from torchvision.transforms import ToTensor, ToPILImage
 from .utils import (bbox_overlaps, get_center, get_height, get_width, make_pos,
                     warp_pos)
 
-from .frog1.fovea_optimize import optimize
+
 from .frog1.fovea_obj_detect import get_processed_boxes
+from .frog1.fovea_optimize import FoveaOptimizer
 
 import os
 from PIL import Image
@@ -25,7 +26,7 @@ class Tracker:
     cl = 1
 
     def __init__(self, obj_detect, reid_network, tracker_cfg, 
-                 origin_obj_detect=None, fovea_optimizer=None):
+                 origin_obj_detect=None):
         self.obj_detect = obj_detect
         self.reid_network = reid_network
         self.detection_person_thresh = tracker_cfg['detection_person_thresh']
@@ -60,8 +61,18 @@ class Tracker:
         # 在下采样的实验模式下，检测原图指定区域目标的模型
         self.fovea_switch = tracker_cfg['frog_fovea']
         self.origin_obj_detect = origin_obj_detect
-        self.fovea_optimizer = fovea_optimizer
-        self.fovea_scale = tracker_cfg['frog_fovea_factor']
+        self.compress_ratio = tracker_cfg['frog_compress_ratio']
+        self.fovea_optimizer = None
+        self.fovea_scale = tracker_cfg['frog_fovea_scale']
+
+    def init_fovea_optimizer(self, img_width, img_height):
+        fovea_width = int(img_width * self.fovea_scale)
+        fovea_height = int(img_height * self.fovea_scale)
+        self.fovea_optimizer = FoveaOptimizer(img_width=img_width, img_height=img_height, init_image_path=None,
+                                              region_scale=0.025, pixel_change_threshold=70,
+                                              fovea_width=fovea_width, fovea_height=fovea_height,
+                                              is_PIL=True)
+
 
     def reset(self, hard=True):
         self.tracks = []
@@ -317,27 +328,7 @@ class Tracker:
                     # TODO 实现基于模拟退火优化中央凹区域的效果
                     # 目前先默认中央凹区域永远是最中间的部分
                     img_h, img_w = origin_img.size(1), origin_img.size(2)
-                    fovea_x, fovea_y = img_w // 4, img_h // 4
-                    fovea_w, fovea_h = img_w // 2, img_h // 2
-                    fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
-                    # print(f'fovea_pos: {fovea_pos}')
                     
-                    # 截取出给定中央凹区域tlwh对应的原始图像内容
-                    # origin_img 是一个pytorch的tensor张量
-                    fovea_img = origin_img[:, fovea_y:fovea_y+fovea_h, fovea_x:fovea_x+fovea_w]
-                    _fovea_img = torch.stack([fovea_img], dim=0)
-                    # print(f'origin_img shape: {origin_img.shape}, fovea_img shape: {fovea_img.shape}')
-
-                    # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
-                    fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
-
-                    # 将所有中央凹区域得到的目标boxes转换到blob['img']上
-                    processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
-                                                    fovea_scale=self.fovea_scale)
-
-                    # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
-                    boxes = torch.cat([boxes, processed_fovea_boxes], dim=0)
-                    scores = torch.cat([scores, fovea_scores], dim=0)
 
                     # 将中央凹区域图像的检测锚框画到中央凹区域上并保存
                     # fovea_img是一个经过PIL Image库读入，后又转成pytorch tensor的图像
@@ -379,6 +370,53 @@ class Tracker:
                 boxes = scores = torch.zeros(0).cuda()
         else:
             boxes, scores = self.obj_detect.detect(blob['img'])
+            if self.fovea_switch:
+                    # TODO 实现基于模拟退火优化中央凹区域的效果
+                    # 目前先默认中央凹区域永远是最中间的部分
+                    img_h, img_w = origin_img.size(1), origin_img.size(2)
+                    fovea_x, fovea_y = img_w // 4, img_h // 4
+                    fovea_w, fovea_h = img_w // 2, img_h // 2
+                    # 将blob['img'][0]转成cv2格式
+                    # cv2_img = blob['img'][0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+
+                    prev_online_boxes = []
+
+                    if len(self.tracks):
+                        for track in self.tracks:
+                            track_pos = track.pos[0].cpu().numpy()
+                            prev_online_boxes.append(track_pos)
+
+                    fovea_x, fovea_y = self.fovea_optimizer.get_fovea_position(current_frame_img=blob['img'][0],
+                                                            prev_online_boxes=prev_online_boxes,
+                                                            visualize=False, visualize_mark=f'{self.im_index}', visualize_path='./debug/')
+                    print('Fovea optimize complete')
+                    # 如果fovea_x, fovea_y is NaN, 则使用默认值
+                    if np.isnan(fovea_x) or np.isnan(fovea_y):
+                        fovea_x, fovea_y = int(img_w / 4 / self.compress_ratio[0]), int(img_h / 4 / self.compress_ratio[1])
+                    # 放大回原图尺寸
+                    # print(f'[Before]fovea_x: {fovea_x}, fovea_y: {fovea_y}')
+                    fovea_x, fovea_y = int(fovea_x * self.compress_ratio[0]), int(fovea_y * self.compress_ratio[1])
+
+
+                    fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
+                    print(f'fovea_pos: {fovea_pos}')
+                    
+                    # 截取出给定中央凹区域tlwh对应的原始图像内容
+                    # origin_img 是一个pytorch的tensor张量
+                    fovea_img = origin_img[:, fovea_y:fovea_y+fovea_h, fovea_x:fovea_x+fovea_w]
+                    _fovea_img = torch.stack([fovea_img], dim=0)
+                    # print(f'origin_img shape: {origin_img.shape}, fovea_img shape: {fovea_img.shape}')
+
+                    # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
+                    fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
+
+                    # 将所有中央凹区域得到的目标boxes转换到blob['img']上
+                    processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
+                                                    compress_ratio=self.compress_ratio)
+
+                    # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
+                    boxes = torch.cat([boxes, processed_fovea_boxes], dim=0)
+                    scores = torch.cat([scores, fovea_scores], dim=0)
 
         if boxes.nelement() > 0:
             boxes = clip_boxes_to_image(boxes, blob['img'].shape[-2:])

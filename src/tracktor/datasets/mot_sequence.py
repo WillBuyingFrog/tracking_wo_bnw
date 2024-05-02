@@ -40,7 +40,8 @@ class MOTSequence(Dataset):
         assert seq_name in self._train_folders + self._test_folders, \
             'Image set does not exist: {}'.format(seq_name)
 
-        self.data, self.no_gt = self._sequence()
+
+        self.data, self.no_gt, self.im_width, self.im_height = self._sequence()
 
     def __len__(self):
         return len(self.data)
@@ -79,6 +80,8 @@ class MOTSequence(Dataset):
         config.read(config_file)
         seqLength = int(config['Sequence']['seqLength'])
         imDir = config['Sequence']['imDir']
+        imWidth = int(config['Sequence']['imWidth'])
+        imHeight = int(config['Sequence']['imHeight'])
 
         imDir = osp.join(seq_path, imDir)
         gt_file = osp.join(seq_path, 'gt', 'gt.txt')
@@ -150,7 +153,7 @@ class MOTSequence(Dataset):
 
             total.append(sample)
 
-        return total, no_gt
+        return total, no_gt, imWidth, imHeight
 
     def __str__(self):
         return self._seq_name

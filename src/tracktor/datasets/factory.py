@@ -5,7 +5,8 @@ from .marcuhmot import MarCUHMOT
 from .mot15_wrapper import MOT15Wrapper
 from .mot_reid_wrapper import MOTreIDWrapper
 from .mot_wrapper import (MOT17LOWFPSWrapper, MOT17PrivateWrapper,
-                          MOT17Wrapper, MOT19Wrapper, MOT20Wrapper)
+                          MOT17Wrapper, MOT19Wrapper, MOT20Wrapper,
+                          MOT17OriginWrapper)
 
 _sets = {}
 
@@ -17,6 +18,14 @@ for split in ['train', 'test', 'all', '01', '02', '03', '04', '05', '06', '07', 
         name = f'mot17_{split}_{dets}'
         _sets[name] = (lambda *args, split=split,
                        dets=dets: MOT17Wrapper(split, dets, *args))
+
+for split in ['train', 'test', 'all', '01', '02', '03', '04', '05', '06', '07', '08', '09',
+              '10', '11', '12', '13', '14']:
+    for dets in ['DPM16', 'DPM', 'FRCNN', 'SDP', 'ALL']:
+        name = f'mot17origin_{split}_{dets}'
+        _sets[name] = (lambda *args, split=split,
+                       dets=dets: MOT17OriginWrapper(split, dets, *args))
+
 
 for split in ['train', 'test', 'all', '01', '02', '03', '04', '05', '06', '07', '08']:
     # only FRCNN detections

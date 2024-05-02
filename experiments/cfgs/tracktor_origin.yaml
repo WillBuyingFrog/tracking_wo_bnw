@@ -1,4 +1,4 @@
-name: tracktor-fovea-down5.0
+name: Tracktor++
 # Subfolder name in output/tracker/
 module_name: MOT17
 desription:
@@ -19,11 +19,11 @@ reid_models: output/tracktor/reid/market1501/model/model-last.pth.tar
 interpolate: False
 # [False, 'debug', 'pretty']
 # compile video with: `ffmpeg -f image2 -framerate 15 -i %06d.jpg -vcodec libx264 -y movie.mp4 -vf scale=320:-1`
-write_images: 'pretty'
+write_images: False
 # load tracking results if available and only evaluate
 load_results: False
 # dataset (look into tracker/datasets/factory.py)
-dataset: mot17_train_FRCNN
+dataset: mot17origin_train_FRCNN
 # start and end percentage of frames to run, e.g., [0.0, 0.5] for train and [0.75, 1.0] for val split.
 frame_range:
   start: 0.0
@@ -71,10 +71,8 @@ tracker:
   # Frog's foveation settings
   
   # Foveation switch
-  frog_fovea: True
-  # Fovea scale
-  frog_fovea_scale: 1.0
+  frog_fovea: False
   # Compression rate of the origin image
-  frog_compress_ratio: [5.0, 5.0]
+  frog_fovea_factor: [5.0, 5.0]
 
 oracle: null

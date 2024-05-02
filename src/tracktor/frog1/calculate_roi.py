@@ -23,13 +23,17 @@ class Logger:
 
 class FrogROI:
     def __init__(self, image_width, image_height, init_image_path,
-                 region_scale=0.1, pixel_change_threshold=50):
+                 region_scale=0.1, pixel_change_threshold=50, is_PIL=False):
         self.image_width = image_width
         self.image_height = image_height
         self.init_image_path = init_image_path
+        self.is_PIL = is_PIL
         # self.current_image = cv2.imread(init_image_path)
         # 需要持续更新的比较基准（engram）是和current_image形状相同的numpy array，初始值全部置零
-        self.engram = np.zeros((self.image_height, self.image_width, 3), dtype=np.float32)
+        if is_PIL:
+            self.engram = np.zeros((3, self.image_height, self.image_width), dtype=np.float32)
+        else:
+            self.engram = np.zeros((self.image_height, self.image_width, 3), dtype=np.float32)
         # self.engram_factor = np.array([5, 3, 2.5, 2, 1.5, 1.25, 1, 0.75, 0.5, 0.25])
         # self.engram_factor = np.array([10, 2.5, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.2, 0.1])
         # Inspired from "Predictive properties of visual adaptation"
@@ -75,8 +79,11 @@ class FrogROI:
 
         threshold = region_h * region_w * self.pixel_change_threshold
 
+        if self.is_PIL:
+            threshold /= 255
+
         if visualize:
-            logger.write_log(f'threadhold: {threshold}')
+            logger.write_log(f'threshold: {threshold}')
 
         detected_regions = []
         detected_regions_diff = []
@@ -86,7 +93,10 @@ class FrogROI:
 
         for i in range(num_regions_w):
             for j in range(num_regions_h):
-                region_diff = diff[j*region_h:(j+1)*region_h, i*region_w:(i+1)*region_w]
+                if self.is_PIL:
+                    region_diff = diff[:, j*region_h:(j+1)*region_h, i*region_w:(i+1)*region_w]
+                else:
+                    region_diff = diff[j*region_h:(j+1)*region_h, i*region_w:(i+1)*region_w]
                 region_diff_sum = region_diff.sum()
                 if region_diff_sum > threshold:
                 # print(f'Region ({i}, {j}) diff sum: {region_diff_sum}')
