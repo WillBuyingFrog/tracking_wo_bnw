@@ -196,7 +196,7 @@ def plot_sequence(tracks, data_loader, output_dir, write_images):
                             bbox[2] - bbox[0],
                             bbox[3] - bbox[1],
                             fill=False,
-                            linewidth=2.0,
+                            linewidth=1.0,
                             color=cmap(track_id)
                         ))
 

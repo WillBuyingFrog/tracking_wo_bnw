@@ -14,6 +14,8 @@ from .utils import (bbox_overlaps, get_center, get_height, get_width, make_pos,
 
 from .frog1.fovea_obj_detect import get_processed_boxes
 from .frog1.fovea_optimize import FoveaOptimizer
+from .frog1.box_iou import box_iou
+from .frog1.frog_logger import FrogLogger
 
 import os
 from PIL import Image
@@ -64,10 +66,17 @@ class Tracker:
         self.compress_ratio = tracker_cfg['frog_compress_ratio']
         self.fovea_optimizer = None
         self.fovea_scale = tracker_cfg['frog_fovea_scale']
+        self.do_fovea_logs = tracker_cfg['frog_logger']
+        if self.do_fovea_logs:
+            __path =  tracker_cfg['frog_logger_path']
+            self.frog_logger_path = f'{__path}/fovea_logger.log'
+            self.fovea_logger = FrogLogger(self.frog_logger_path)
+
 
     def init_fovea_optimizer(self, img_width, img_height):
         fovea_width = int(img_width * self.fovea_scale)
         fovea_height = int(img_height * self.fovea_scale)
+        # print(f'fovea_width: {fovea_width}, fovea_height: {fovea_height}')
         self.fovea_optimizer = FoveaOptimizer(img_width=img_width, img_height=img_height, init_image_path=None,
                                               region_scale=0.025, pixel_change_threshold=70,
                                               fovea_width=fovea_width, fovea_height=fovea_height,
@@ -389,7 +398,7 @@ class Tracker:
                     fovea_x, fovea_y = self.fovea_optimizer.get_fovea_position(current_frame_img=blob['img'][0],
                                                             prev_online_boxes=prev_online_boxes,
                                                             visualize=False, visualize_mark=f'{self.im_index}', visualize_path='./debug/')
-                    print('Fovea optimize complete')
+                    # print('Fovea optimize complete')
                     # 如果fovea_x, fovea_y is NaN, 则使用默认值
                     if np.isnan(fovea_x) or np.isnan(fovea_y):
                         fovea_x, fovea_y = int(img_w / 4 / self.compress_ratio[0]), int(img_h / 4 / self.compress_ratio[1])
@@ -399,7 +408,7 @@ class Tracker:
 
 
                     fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
-                    print(f'fovea_pos: {fovea_pos}')
+                    # print(f'fovea_pos: {fovea_pos}')
                     
                     # 截取出给定中央凹区域tlwh对应的原始图像内容
                     # origin_img 是一个pytorch的tensor张量
@@ -413,10 +422,43 @@ class Tracker:
                     # 将所有中央凹区域得到的目标boxes转换到blob['img']上
                     processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
                                                     compress_ratio=self.compress_ratio)
+                    
+                    if self.do_fovea_logs:
+                        # 打印本帧中全视角图像中检测出的锚框
+                        self.fovea_logger.write_log(f'{len(boxes)} boxes in wide FOV image')
+                        for box in boxes:
+                            self.fovea_logger.write_log(f'\t {box}')
+                        # 打印本帧计算得到的中央凹区域检测出的锚框，打印已经经过坐标变换的
+                        self.fovea_logger.write_log(f'{len(processed_fovea_boxes)} boxes in fovea image')
+                        for box in processed_fovea_boxes:
+                            self.fovea_logger.write_log(f'\t {box}')
+                    
 
-                    # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
-                    boxes = torch.cat([boxes, processed_fovea_boxes], dim=0)
-                    scores = torch.cat([scores, fovea_scores], dim=0)
+                    # 对每个processed_fovea_boxes，检查其与已有的所有boxes的IoU，如果IoU小于0.5，则将其加入到boxes中
+                    # 且将其对应的scores加入到scores中
+                    # 初始化一个空列表来存储新的boxes和scores
+                    new_boxes = []
+                    new_scores = []
+                    # 遍历每个processed_fovea_boxes
+                    for box, score in zip(processed_fovea_boxes, fovea_scores):
+                        # 计算当前box与已有boxes的IoU
+                        ious = box_iou(box.unsqueeze(0), boxes)
+                        # 如果IoU小于0.5，则将box和score加入到新列表中
+                        if (ious < 0.5).all():
+                            new_boxes.append(box)
+                            new_scores.append(score)
+                    
+                    if self.do_fovea_logs:
+                        # 打印所有需要添加的锚框
+                        self.fovea_logger.write_log(f'{len(new_boxes)} new valid boxrsin fovea image')
+                        for box in new_boxes:
+                            self.fovea_logger.write_log(f'\t {box}')
+                    if len(new_boxes):
+                        new_boxes = torch.stack(new_boxes).cuda()
+                        new_scores = torch.tensor(new_scores).cuda()
+                        # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
+                        boxes = torch.cat([boxes, new_boxes], dim=0)
+                        scores = torch.cat([scores, new_scores], dim=0)
 
         if boxes.nelement() > 0:
             boxes = clip_boxes_to_image(boxes, blob['img'].shape[-2:])

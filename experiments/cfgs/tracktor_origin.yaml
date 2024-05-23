@@ -1,4 +1,4 @@
-name: Tracktor++
+name: tracktor-down5.0-nofovea
 # Subfolder name in output/tracker/
 module_name: MOT17
 desription:
@@ -72,7 +72,13 @@ tracker:
   
   # Foveation switch
   frog_fovea: False
+  # Fovea scale
+  frog_fovea_scale: 0.5
   # Compression rate of the origin image
-  frog_fovea_factor: [5.0, 5.0]
+  frog_compress_ratio: [5.0, 5.0]
+
+  frog_logger: True
+
+  frog_logger_path: output/frog_log
 
 oracle: null

@@ -106,7 +106,11 @@ class FoveaOptimizer():
                                         dry_run=False)
             return fovea_x, fovea_y
         else:
-            return self.img_width // 4, self.img_height // 4
+            # 计算合法中央凹区域xy坐标范围
+            valid_x_min, valid_y_min = 0, 0 
+            valid_x_max, valid_y_max = max(0, self.img_width - self.fovea_width), max(0, self.img_height - self.fovea_height)
+            # 返回合法区域xy的中点
+            return int((valid_x_min + valid_x_max) / 2), int((valid_y_min + valid_y_max) / 2)
         
     
     # 将单次模拟退火的结果画成图
@@ -250,12 +254,12 @@ class FoveaOptimizer():
         if init_x is not None:
             current_x = init_x
         else:
-            current_x = max(1, center_x - fovea_width)
+            current_x = max(0, center_x - fovea_width)
 
         if init_y is not None:
             current_y = init_y
         else:
-            current_y = max(1, center_y - fovea_height)
+            current_y = max(0, center_y - fovea_height)
         current_score = self.total_coverage(current_x, current_y, tlwhs, fovea_width, fovea_height)
         if visualize:
             logger.write_log(f'New round. Initial position x={current_x:.2f}, y={current_y:.2f}, score={current_score:.2f}')
@@ -263,11 +267,12 @@ class FoveaOptimizer():
             for index, tlwh in enumerate(tlwhs):
                 logger.write_log(f'\ttlwh: {tlwh}, weight: {box_weight[index]}')
 
-        # 温度调度参数
+        # 算法参数
         initial_temp = 50.0
         final_temp = 0.05
         alpha = 0.9
         temp = initial_temp
+        next_pos_range = 0.3
 
         # 记录循环轮次
         counter = 0
@@ -275,6 +280,7 @@ class FoveaOptimizer():
         # 计算迭代过程中坐标的合法范围
         valid_x_min, valid_y_min = 0, 0
         valid_x_max, valid_y_max = img_width - fovea_width, img_height - fovea_height
+        # print(f'Valid limits: x: {valid_x_min} ~ {valid_x_max}, y: {valid_y_min} ~ {valid_y_max}')
 
         # 模拟退火迭代
         while temp > final_temp:
@@ -282,20 +288,12 @@ class FoveaOptimizer():
 
             # 随机选择新的状态（邻域函数）
             if counter > 1:
-                next_x = current_x + random.uniform(-75, 75)  # 后续需要调整步长以适应不同宽高的图片
-                next_y = current_y + random.uniform(-75, 75)
-
-                # 不断随机采样，直到采样得到新的合法坐标
-                new_pos_eff = 75.0
-                while next_x + fovea_width > img_width or next_x <= 0:
-                    new_pos_eff *= 1.2
-                    new_pos_eff = min(new_pos_eff, fovea_width)
-                    next_x = current_x + random.uniform(-new_pos_eff, new_pos_eff) 
-                new_pos_eff = 10.0
-                while next_y + fovea_height > img_height or next_y <= 0:
-                    new_pos_eff *= 1.2
-                    new_pos_eff = min(new_pos_eff, fovea_height)
-                    next_y = current_y + random.uniform(-new_pos_eff, new_pos_eff)
+                next_x_min = max(valid_x_min, current_x - next_pos_range * fovea_width)
+                next_x_max = min(valid_x_max, current_x + next_pos_range * fovea_width)
+                next_y_min = max(valid_y_min, current_y - next_pos_range * fovea_height)
+                next_y_max = min(valid_y_max, current_y + next_pos_range * fovea_height)
+                next_x = random.uniform(next_x_min, next_x_max)
+                next_y = random.uniform(next_y_min, next_y_max)
             else:
                 next_x, next_y = current_x, current_y
                 # visualize_ann_result(tlwhs, next_x, next_y, fovea_width, fovea_height,
@@ -307,7 +305,7 @@ class FoveaOptimizer():
                                         opt_version=opt_version, box_weight=box_weight)
 
             # 计算接受概率
-            accept_probability = math.exp((next_score - current_score) / temp)
+            accept_probability = math.exp(min(5, (next_score - current_score) / temp))
             if visualize:
                 logger.write_log(f'\tRound {counter} - Temp: {temp:.2f}, Current score: {current_score:.2f}, Next score: {next_score:.2f}, Accept probability: {accept_probability:.2f}')
 
