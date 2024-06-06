@@ -1,4 +1,4 @@
-name: tracktor-fovea-down5.0-0522
+name: tracktor-fovea-down3.0-0524
 # Subfolder name in output/tracker/
 module_name: MOT17
 desription:
@@ -75,7 +75,7 @@ tracker:
   # Fovea scale
   frog_fovea_scale: 0.5
   # Compression rate of the origin image
-  frog_compress_ratio: [5.0, 5.0]
+  frog_compress_ratio: [4.0, 4.0]
 
   frog_logger: True
 

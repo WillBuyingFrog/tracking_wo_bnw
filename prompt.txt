@@ -1,0 +1,19 @@
+运行一个多目标追踪算法时出现如下报错：
+Traceback (most recent calls WITHOUT Sacred internals):
+  File "experiments/scripts/test_tracktor_origin.py", line 176, in main
+    mot_accums.append(get_mot_accum(results, seq_loader))
+  File "/home/user/frog/mot-dbt/tracking_wo_bnw/src/tracktor/utils.py", line 449, in get_mot_accum
+    distance)
+  File "/home/user/anaconda3/envs/tracktor/lib/python3.7/site-packages/motmetrics/mot.py", line 252, in update
+    rids, cids = linear_sum_assignment(dists)
+  File "/home/user/anaconda3/envs/tracktor/lib/python3.7/site-packages/motmetrics/lap.py", line 73, in linear_sum_assignment
+    rids, cids = solver(costs)
+  File "/home/user/anaconda3/envs/tracktor/lib/python3.7/site-packages/motmetrics/lap.py", line 288, in lsa_solve_lapjv
+    from lap import lapjv
+  File "/home/user/anaconda3/envs/tracktor/lib/python3.7/site-packages/lap/__init__.py", line 25, in <module>
+    from ._lapjv import (
+  File "__init__.pxd", line 199, in init lap._lapjv
+ValueError: numpy.ndarray has the wrong size, try recompiling. Expected 80, got 88
+
+
+这个报错的成因是什么？如何解决？
