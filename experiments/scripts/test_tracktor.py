@@ -35,6 +35,7 @@ ex.add_config('experiments/cfgs/tracktor.yaml')
 ex.add_named_config('oracle', 'experiments/cfgs/oracle_tracktor.yaml')
 
 
+
 # @ex.config
 def add_reid_config(reid_models, obj_detect_models, dataset):
     # if isinstance(dataset, str):
@@ -123,13 +124,11 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             device='cuda' if torch.cuda.is_available() else 'cpu')
 
         reid_networks.append(reid_network)
-
     # tracktor
     if oracle is not None:
         tracker = OracleTracker(
             obj_detect, reid_network, tracker, oracle)
     else:
-
         tracker = Tracker(obj_detect, reid_network, tracker,
                           origin_obj_detect=origin_obj_detect)
 
@@ -144,7 +143,8 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
 
         # 初始化tracker的中央凹优化部分
         print(f'img_width: {seq.im_width}, img_height: {seq.im_height}')
-        tracker.init_fovea_optimizer(img_width=seq.im_width, img_height=seq.im_height)
+        if tracker.fovea_switch:
+            tracker.init_fovea_optimizer(img_width=seq.im_width, img_height=seq.im_height)
 
         _log.info(f"Tracking: {seq}")
 
@@ -180,7 +180,79 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
         if seq.no_gt:
             _log.info("No GT data for evaluation available.")
         else:
-            mot_accums.append(get_mot_accum(results, seq_loader))
+            accum = get_mot_accum(results, seq_loader)
+            fp_events = {}
+            fp_bboxes = {}
+
+            match_events = {}
+            match_boxes = {}
+    
+            # 获取所有事件的DataFrame
+            events_df = accum.events
+            
+            # 筛选出所有标记为FP的行
+            fp_rows = events_df[events_df.Type == 'FP']
+            # 筛选出所有标记为match的行
+            match_rows = events_df[events_df.Type == 'MATCH']
+            
+            # 遍历筛选后的行，构建结果字典
+            for index, row in fp_rows.iterrows():
+                frame_id = row.name[0]  # 帧编号
+                hyp_id = row.HId  # 锚框ID
+                # if frame_id % 50 == 0:
+                #     print(f"frame_id: {frame_id}, hyp_id: {hyp_id}, raw row {row}")
+                
+                # 如果帧编号不在字典中，则初始化为空列表
+                if frame_id not in fp_events:
+                    fp_events[frame_id] = []
+                    fp_bboxes[frame_id] = []
+                
+                # 将锚框ID添加到对应帧编号的列表中
+                fp_events[frame_id].append(hyp_id)
+                # 将对应的锚框值添加到对应帧编号的锚框列表中
+                # 根据代码，hyp_id就是轨迹ID，mot_accum计算时，逐帧遍历，
+                # 为每一帧的预测值和实际值做匹配，预测数据为(track_id, x1, y1, w, h, score)
+                fp_bboxes[frame_id].append(results[hyp_id][frame_id][:4])
+
+            for index, row in match_rows.iterrows():
+                frame_id = row.name[0]
+                hyp_id = row.HId
+                if frame_id not in match_events:
+                    match_events[frame_id] = []
+                    match_boxes[frame_id] = []
+                match_events[frame_id].append(hyp_id)
+                match_boxes[frame_id].append(results[hyp_id][frame_id][:4])
+            
+            output_fp_dir = osp.join(output_dir, f"{seq}")
+            output_match_dir = osp.join(output_dir, f"{seq}")
+            # 如果没有output_fp_dir,就要先创建
+            if not osp.exists(output_fp_dir):
+                os.makedirs(output_fp_dir)
+
+            # print(f"Root dir for output fp files: {output_fp_dir}")
+            
+            with open(osp.join(output_fp_dir, "fp.txt"), "w") as fp_file:
+
+                # 遍历字典，输出每一帧的FP个数
+                for frame_id, fp_list in fp_events.items():
+                    # if frame_id % 50 == 0:
+                    #     print(f"frame_id: {frame_id}, fp_count: {len(fp_list)}")
+                        # print(f"bboxes: {fp_bboxes[frame_id]}")
+
+                    for bbox in fp_bboxes[frame_id]:
+                        fp_file.write(f"{frame_id} {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n")
+
+            
+            with open(osp.join(output_fp_dir, "match.txt"), "w") as match_file:
+                for frame_id, match_list in match_events.items():
+                    # if frame_id % 50 == 0:
+                    #     print(f"frame_id: {frame_id}, match_count: {len(match_list)}")
+                        # print(f"bboxes: {match_boxes[frame_id]}")
+                    for bbox in match_boxes[frame_id]:
+                        match_file.write(f"{frame_id} {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n")
+                
+            
+            mot_accums.append(accum)
 
         if write_images:
             plot_sequence(

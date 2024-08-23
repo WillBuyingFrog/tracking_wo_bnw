@@ -423,7 +423,7 @@ class Tracker:
                     processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
                                                     compress_ratio=self.compress_ratio)
                     
-                    if self.do_fovea_logs:
+                    if self.do_fovea_logs and self.im_index % 10 == 0:
                         # 打印本帧中全视角图像中检测出的锚框
                         self.fovea_logger.write_log(f'{len(boxes)} boxes in wide FOV image')
                         for box in boxes:
@@ -448,9 +448,9 @@ class Tracker:
                             new_boxes.append(box)
                             new_scores.append(score)
                     
-                    if self.do_fovea_logs:
+                    if self.do_fovea_logs and self.im_index % 10 == 0:
                         # 打印所有需要添加的锚框
-                        self.fovea_logger.write_log(f'{len(new_boxes)} new valid boxrsin fovea image')
+                        self.fovea_logger.write_log(f'{len(new_boxes)} new valid boxes in fovea image')
                         for box in new_boxes:
                             self.fovea_logger.write_log(f'\t {box}')
                     if len(new_boxes):
@@ -475,6 +475,16 @@ class Tracker:
         else:
             det_pos = torch.zeros(0).cuda()
             det_scores = torch.zeros(0).cuda()
+        
+        if self.do_fovea_logs and self.im_index % 10 == 0:
+            
+            self.fovea_logger.write_log(f'Boxes(clipped) for frame {self.im_index}:')
+            for box in boxes:
+                self.fovea_logger.write_log(f'\t {box}')
+
+            self.fovea_logger.write_log(f'Final boxes for frame {self.im_index}:')
+            for box in det_pos:
+                self.fovea_logger.write_log(f'\t {box}')
 
         ##################
         # Predict tracks #
@@ -554,6 +564,13 @@ class Tracker:
             self.results[t.id][self.im_index] = np.concatenate([
                 t.pos[0].cpu().numpy(),
                 np.array([t.score.cpu()])])
+        
+        # if self.do_fovea_logs and self.im_index % 10 == 0:
+        #     # 记录所有目前激活的track在这一帧的位置信息
+        #     self.fovea_logger.write_log(f'Active tracks for frame {self.im_index}:')    
+        #     for t in self.tracks:
+        #         self.fovea_logger.write_log(f'\t{t.id} {t.pos[0].cpu().numpy()}, {t.score.cpu()}')
+        #         self.fovea_logger.write_log(f'compare: {self.results[t.id][self.im_index]}')
 
         for t in self.inactive_tracks:
             t.count_inactive += 1
