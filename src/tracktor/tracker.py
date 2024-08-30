@@ -114,12 +114,119 @@ class Tracker:
             ))
         self.track_num += num_new
 
-    def regress_tracks(self, blob):
+    def regress_tracks(self, blob, _fovea_img=None, compressed_fovea_pos=None):
         """Regress the position of the tracks and also checks their scores."""
         pos = self.get_pos()
 
+        boxes = []
+        scores = []
+
+        pos_inside_fovea = []
+        pos_inside_fovea_ind = []
+        pos_outside_fovea = []
+        pos_outside_fovea_ind = []
+        _counter = -1
+
+        # origin_fovea_pos =  self.fovea_pos_in_original_image
+
+        if _fovea_img is not None and self.fovea_switch:
+            _pos = pos.clone().cpu().tolist()
+            # self.fovea_logger.write_log(f"\tFovea region in original image is {self.fovea_pos_in_original_image}, in compressed image is {compressed_fovea_pos}")
+            for single_pos in _pos:
+                _counter += 1
+                if check_bbox_in_fovea_region(single_pos, compressed_fovea_pos):
+                    # if self.do_fovea_logs:
+                        # self.fovea_logger.write_log(f"\tOld box {single_pos} is in fovea region, ind{_counter}")
+                    # 计算得到该锚框在中央凹区域下的坐标
+                    pos_inside_fovea.append(single_pos)
+                    pos_inside_fovea_ind.append(_counter)
+                else:
+                    # if self.do_fovea_logs:
+                        # self.fovea_logger.write_log(f"\tOld box {single_pos} is outside fovea region, ind{_counter}")
+                    pos_outside_fovea.append(single_pos)
+                    pos_outside_fovea_ind.append(_counter)
+        
+        # print(f"Position outside fovea: {pos_inside_fovea} with indices: {pos_outside_fovea_ind}")
+
+        # print(f"Position inside fovea: {pos_inside_fovea} with indices: {pos_inside_fovea_ind}")
+
+        # 兼容已有实现，需要把pos_inside_fovea和pos_outside_fovea转换为tensor
+        pos_inside_fovea = torch.Tensor(pos_inside_fovea)
+        pos_outside_fovea = torch.Tensor(pos_outside_fovea)
+
+        if len(pos_inside_fovea):
+            # 先把pos_inside_fovea的坐标转换到高清小区域图上
+            origin_fovea_x, origin_fovea_y, origin_fovea_w, origin_fovea_h = self.fovea_pos_in_original_image
+            _pos_inside_fovea = pos_inside_fovea.clone()
+            _pos_inside_fovea[:, 0], _pos_inside_fovea[:, 2] = _pos_inside_fovea[:, 0] * self.compress_ratio[0] - origin_fovea_x, _pos_inside_fovea[:, 2] * self.compress_ratio[0] - origin_fovea_x
+            _pos_inside_fovea[:, 1], _pos_inside_fovea[:, 3] = _pos_inside_fovea[:, 1] * self.compress_ratio[1] - origin_fovea_y, _pos_inside_fovea[:, 3] * self.compress_ratio[1] - origin_fovea_y
+            # 再执行检测
+            _boxes_inside, _scores_inside = self.origin_obj_detect.predict_boxes(_pos_inside_fovea)
+            # 然后返回的boxes还要再变换回低清大区域图上
+            _boxes_inside = get_processed_boxes(_boxes_inside, self.fovea_pos_in_original_image, self.compress_ratio)
+
+            # TEMP_OUTPUT_PATH = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/frog_log_0830'
+            # if self.do_fovea_logs:
+            #     # 把blob里的图片复制过来，然后用cv2画上_boxes_inside，再保存到TEMP_OUTPUT_PATH里
+            #     _img = cv2.imread(blob['img_path'][0])
+            #     for box in _boxes_inside:
+            #         _box = box.clone().cpu().numpy()
+            #         x0, y0, x1, y1 = _box
+            #         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+            #         print(f"x0, y0, x1, y1: {x0}, {y0}, {x1}, {y1}")
+            #         cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 2)
+            #     cv2.imwrite(f'{TEMP_OUTPUT_PATH}/frame_{self.im_index}_inside.jpg', _img)
+
+        
+        if len(pos_outside_fovea):
+            # print(f"Position outside fovea: {pos_outside_fovea} with indices: {pos_outside_fovea_ind}")
+            _boxes_outside, _scores_outside = self.obj_detect.predict_boxes(pos_outside_fovea)
+        
+        for i in range(len(self.tracks) - 1, -1, -1):
+            # 用n^2复杂度方法找每一条track的检测结果
+            # 先找在中央凹区域内的
+            found = False
+            if len(pos_inside_fovea_ind):
+                for j in range(len(pos_inside_fovea_ind)):
+                    if i == pos_inside_fovea_ind[j]:
+                        boxes.append(_boxes_inside[j])
+                        scores.append(_scores_inside[j])
+                        found = True
+                        break
+            # 再找在中央凹区域外的
+            if len(pos_outside_fovea_ind):
+                for j in range(len(pos_outside_fovea_ind)):
+                    if i == pos_outside_fovea_ind[j]:
+                        boxes.append(_boxes_outside[j])
+                        scores.append(_scores_outside[j])
+                        found = True
+                        break
+            
+            assert found == True, f'No detection found for track {i}'
+
+        boxes = torch.stack(boxes, dim=0)
+        scores = torch.stack(scores, dim=0)
+        
+        # _img = cv2.imread(blob['img_path'][0])
+        # for box in boxes:
+        #     _box = box.clone().cpu().numpy()
+        #     x0, y0, x1, y1 = _box
+        #     x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+        #     cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 2)
+        # cv2.imwrite(f'./output/frog_log_0830/frame_{self.im_index}_all.jpg', _img)
+
+        # if self.do_fovea_logs:
+        #     self.fovea_logger.write_log(f"\tIn regress_tracks, optimized boxes and scores:")
+        #     for i in range(len(self.tracks)-1, -1, -1):
+        #         self.fovea_logger.write_log(f"\t\t{i} {boxes[i]}, {scores[i]}")
+        #     _boxes, _scores = self.obj_detect.predict_boxes(pos)
+        #     self.fovea_logger.write_log(f"\tIn regress_tracks, boxes and scores without optimization:")
+        #     for i in range(len(self.tracks)-1, -1, -1):
+        #         self.fovea_logger.write_log(f"\t\t{i} {_boxes[i]}, {_scores[i]}")
+
+
         # regress
-        boxes, scores = self.obj_detect.predict_boxes(pos)
+        # boxes, scores = self.obj_detect.predict_boxes(pos)
         pos = clip_boxes_to_image(boxes, blob['img'].shape[-2:])
 
         s = []
@@ -323,6 +430,9 @@ class Tracker:
                 origin_img = ToTensor()(origin_img)
             else:
                 print(f'origin_img_path: {origin_img_path} not exists')
+        
+        if self.do_fovea_logs:
+            self.fovea_logger.write_log(f"Frame {self.im_index} start")
 
         ###########################
         # Look for new detections #
@@ -334,48 +444,6 @@ class Tracker:
             dets = blob['dets'].squeeze(dim=0)
             if dets.nelement() > 0:
                 boxes, scores = self.obj_detect.predict_boxes(dets)
-                if self.fovea_switch:
-                    # TODO 实现基于模拟退火优化中央凹区域的效果
-                    # 目前先默认中央凹区域永远是最中间的部分
-                    img_h, img_w = origin_img.size(1), origin_img.size(2)
-                    
-
-                    # 将中央凹区域图像的检测锚框画到中央凹区域上并保存
-                    # fovea_img是一个经过PIL Image库读入，后又转成pytorch tensor的图像
-                    # 使用cv2相关的库函数将检测锚框画到中央凹区域上，再以{当前图片的原文件名}_fovea_result.jpg保存
-                    
-                    # fovea_img_pil = ToPILImage()(fovea_img)
-                    # draw = ImageDraw.Draw(fovea_img_pil)
-                    # for box in fovea_boxes:
-                    #     top_left = (box[0], box[1])
-                    #     bottom_right = (box[2], box[3])
-                    #     draw.rectangle([top_left, bottom_right], outline=(255, 165, 0), width=2)
-                    # fovea_result_path = f'debug/{os.path.basename(origin_img_path)}_fovea_result.jpg'
-                    # fovea_img_pil.save(fovea_result_path)
-
-                    # # 将转换后的检测锚框画到blob['img']上并保存
-                    # peripheral_img_pil = ToPILImage()(blob['img'][0])
-                    # draw = ImageDraw.Draw(peripheral_img_pil)
-                    # for box in processed_fovea_boxes:
-                    #     top_left = (box[0], box[1])
-                    #     bottom_right = (box[2], box[3])
-                    #     draw.rectangle([top_left, bottom_right], outline=(255, 165, 0), width=1)
-                    # # 画出中央凹区域框
-                    # top_left = (fovea_pos[0] / 5.0, fovea_pos[1] / 5.0) 
-                    # bottom_right = ((fovea_pos[0] + fovea_pos[2]) / 5.0, (fovea_pos[1] + fovea_pos[3]) / 5.0)
-                    # draw.rectangle([top_left, bottom_right], outline=(255, 0, 0), width=2)
-                    # peripheral_result_path = f'debug/{os.path.basename(origin_img_path)}_peripheral_result.jpg'
-                    # peripheral_img_pil.save(peripheral_result_path)
-                    
-                    # # 输出fovea_boxes中二个box的详细信息
-                    # print(f'fovea_boxes[1]: {fovea_boxes[1]}')
-                    # # 输出经过变换的中央凹区域boxes的第二个box的详细信息
-                    # print(f'processed_fovea_boxes[1]: {processed_fovea_boxes[1]}')
-                    # # 输出fovea_pos, self.fovea_scale
-                    # print(f'fovea_pos: {fovea_pos}, fovea_scale: {self.fovea_scale}')
-                    # # 输出经过变换后的中央凹区域坐标
-                    # print(f'fovea region in peripheral pic: {top_left}, {bottom_right}')
-                
             else:
                 boxes = scores = torch.zeros(0).cuda()
         else:
@@ -421,21 +489,22 @@ class Tracker:
 
                     # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
                     # fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
+                    self.origin_obj_detect.load_image(_fovea_img)
                     fovea_boxes, fovea_scores = self.obj_detect.detect(_fovea_img)
 
                     # 将所有中央凹区域得到的目标boxes转换到blob['img']上
                     processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
                                                     compress_ratio=self.compress_ratio)
                     
-                    if self.do_fovea_logs and self.im_index % 10 == 0:
-                        # 打印本帧中全视角图像中检测出的锚框
-                        self.fovea_logger.write_log(f'{len(boxes)} boxes in wide FOV image')
-                        for box in boxes:
-                            self.fovea_logger.write_log(f'\t {box}')
-                        # 打印本帧计算得到的中央凹区域检测出的锚框，打印已经经过坐标变换的
-                        self.fovea_logger.write_log(f'{len(processed_fovea_boxes)} boxes in fovea image')
-                        for box in processed_fovea_boxes:
-                            self.fovea_logger.write_log(f'\t {box}')
+                    # if self.do_fovea_logs and self.im_index % 10 == 0:
+                    #     # 打印本帧中全视角图像中检测出的锚框
+                    #     self.fovea_logger.write_log(f'{len(boxes)} boxes in wide FOV image')
+                    #     for box in boxes:
+                    #         self.fovea_logger.write_log(f'\t {box}')
+                    #     # 打印本帧计算得到的中央凹区域检测出的锚框，打印已经经过坐标变换的
+                    #     self.fovea_logger.write_log(f'{len(processed_fovea_boxes)} boxes in fovea image')
+                    #     for box in processed_fovea_boxes:
+                    #         self.fovea_logger.write_log(f'\t {box}')
                     
 
                     # 对每个processed_fovea_boxes，检查其与已有的所有boxes的IoU，如果IoU小于0.5，则将其加入到boxes中
@@ -462,11 +531,11 @@ class Tracker:
                             new_scores.append(score)
                     
                     
-                    if self.do_fovea_logs and self.im_index % 10 == 0:
-                        # 打印所有需要添加的锚框
-                        self.fovea_logger.write_log(f'{len(new_boxes)} new valid boxes in fovea image')
-                        for box in new_boxes:
-                            self.fovea_logger.write_log(f'\t {box}')
+                    # if self.do_fovea_logs and self.im_index % 10 == 0:
+                    #     # 打印所有需要添加的锚框
+                    #     self.fovea_logger.write_log(f'{len(new_boxes)} new valid boxes in fovea image')
+                    #     for box in new_boxes:
+                    #         self.fovea_logger.write_log(f'\t {box}')
                     # if len(new_boxes):
                     #     new_boxes = torch.stack(new_boxes).cuda()
                     #     new_scores = torch.tensor(new_scores).cuda()
@@ -499,15 +568,15 @@ class Tracker:
             det_pos = torch.zeros(0).cuda()
             det_scores = torch.zeros(0).cuda()
         
-        if self.do_fovea_logs and self.im_index % 10 == 0:
+        # if self.do_fovea_logs and self.im_index % 10 == 0:
             
-            self.fovea_logger.write_log(f'Boxes(clipped) for frame {self.im_index}:')
-            for box in boxes:
-                self.fovea_logger.write_log(f'\t {box}')
+        #     self.fovea_logger.write_log(f'Boxes(clipped) for frame {self.im_index}:')
+        #     for box in boxes:
+        #         self.fovea_logger.write_log(f'\t {box}')
 
-            self.fovea_logger.write_log(f'Final boxes for frame {self.im_index}:')
-            for box in det_pos:
-                self.fovea_logger.write_log(f'\t {box}')
+        #     self.fovea_logger.write_log(f'Final boxes for frame {self.im_index}:')
+        #     for box in det_pos:
+        #         self.fovea_logger.write_log(f'\t {box}')
 
         ##################
         # Predict tracks #
@@ -524,7 +593,7 @@ class Tracker:
                 self.tracks = [t for t in self.tracks if t.has_positive_area()]
 
             # regress
-            person_scores = self.regress_tracks(blob)
+            person_scores = self.regress_tracks(blob, _fovea_img, compressed_fovea_pos)
 
             if len(self.tracks):
                 # create nms input
