@@ -42,3 +42,23 @@ def box_iou(box1, box2):
     iou = inter_area / union_area
 
     return iou
+
+
+
+def check_bbox_in_fovea_region(bbox, compressed_fovea_pos):
+    """
+    检查某个tlbr的bbox是否在tlwh表示下的中央凹区域(低清大区域图坐标)内。
+
+    Args:
+        bbox(torch.Tensor): 需要检查的bbox。
+        compressed_fovea_pos(torch.Tensor): 中央凹区域的位置,形状为 (4,) ,分别是x, y, w, h。    
+    """
+    bbox_tlwh = torch.tensor([bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]])
+
+    # 检查bbox是否在中央凹区域内
+    if (bbox_tlwh[0] >= compressed_fovea_pos[0]) and (bbox_tlwh[1] >= compressed_fovea_pos[1]) and \
+       (bbox_tlwh[0] + bbox_tlwh[2] <= compressed_fovea_pos[0] + compressed_fovea_pos[2]) and \
+       (bbox_tlwh[1] + bbox_tlwh[3] <= compressed_fovea_pos[1] + compressed_fovea_pos[3]):
+        return True
+    else:
+        return False

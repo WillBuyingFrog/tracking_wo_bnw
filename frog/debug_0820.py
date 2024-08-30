@@ -3,7 +3,7 @@ import os
 
 
 
-ANCHOR_SIZE_THRESHOLD = 480.0 * 270.0 * 0.0025
+ANCHOR_SIZE_THRESHOLD = 480.0 * 270.0 * 0.005
 
 OUTPUT_ROOT_ORIGIN = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-nofovea-0820'
 OUTPUT_ROOT_FOVEA = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-fovea-0820'
@@ -75,6 +75,8 @@ def count_small_anchors_for_gt(gt_data, anchor_size_threshold):
     for frame_id, bboxes in gt_data.items():
         count = 0
         for bbox in bboxes:
+            if bbox['class_name'] != 1:
+                continue
             w = bbox['bbox'][2] - bbox['bbox'][0]
             h = bbox['bbox'][3] - bbox['bbox'][1]
             if w * h < anchor_size_threshold:
