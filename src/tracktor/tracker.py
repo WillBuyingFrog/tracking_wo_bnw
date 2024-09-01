@@ -169,12 +169,12 @@ class Tracker:
             # if self.do_fovea_logs:
             #     # 把blob里的图片复制过来，然后用cv2画上_boxes_inside，再保存到TEMP_OUTPUT_PATH里
             #     _img = cv2.imread(blob['img_path'][0])
-            #     for box in _boxes_inside:
-            #         _box = box.clone().cpu().numpy()
+            #     for i in range(len(pos_inside_fovea)):
+            #         _box = pos_inside_fovea[i].clone().cpu().numpy()
             #         x0, y0, x1, y1 = _box
             #         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-            #         print(f"x0, y0, x1, y1: {x0}, {y0}, {x1}, {y1}")
             #         cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 2)
+            #         cv2.putText(_img, f'{pos_inside_fovea_ind[i]}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             #     cv2.imwrite(f'{TEMP_OUTPUT_PATH}/frame_{self.im_index}_inside.jpg', _img)
 
         
@@ -182,7 +182,7 @@ class Tracker:
             # print(f"Position outside fovea: {pos_outside_fovea} with indices: {pos_outside_fovea_ind}")
             _boxes_outside, _scores_outside = self.obj_detect.predict_boxes(pos_outside_fovea)
         
-        for i in range(len(self.tracks) - 1, -1, -1):
+        for i in range(0, len(self.tracks)):
             # 用n^2复杂度方法找每一条track的检测结果
             # 先找在中央凹区域内的
             found = False
@@ -208,21 +208,42 @@ class Tracker:
         scores = torch.stack(scores, dim=0)
         
         # _img = cv2.imread(blob['img_path'][0])
-        # for box in boxes:
-        #     _box = box.clone().cpu().numpy()
+        # for i in range(len(self.tracks)-1, -1, -1):
+        #     _box = boxes[i].clone().cpu().numpy()
         #     x0, y0, x1, y1 = _box
         #     x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-        #     cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 2)
+        #     cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
+        #     cv2.putText(_img, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+            
         # cv2.imwrite(f'./output/frog_log_0830/frame_{self.im_index}_all.jpg', _img)
 
-        # if self.do_fovea_logs:
-        #     self.fovea_logger.write_log(f"\tIn regress_tracks, optimized boxes and scores:")
-        #     for i in range(len(self.tracks)-1, -1, -1):
-        #         self.fovea_logger.write_log(f"\t\t{i} {boxes[i]}, {scores[i]}")
-        #     _boxes, _scores = self.obj_detect.predict_boxes(pos)
-        #     self.fovea_logger.write_log(f"\tIn regress_tracks, boxes and scores without optimization:")
-        #     for i in range(len(self.tracks)-1, -1, -1):
-        #         self.fovea_logger.write_log(f"\t\t{i} {_boxes[i]}, {_scores[i]}")
+        # __boxes, __scores = self.obj_detect.predict_boxes(pos)
+        # _img = cv2.imread(blob['img_path'][0])
+        # for i in range(len(self.tracks)-1, -1, -1):
+        #     _box = __boxes[i].clone().cpu().numpy()
+        #     x0, y0, x1, y1 = _box
+        #     x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+        #     cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
+        #     cv2.putText(_img, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+        # cv2.imwrite(f'./output/frog_log_0830/frame_{self.im_index}_all_origin.jpg', _img)
+
+        # _img = cv2.imread(blob['img_path'][0])
+        # for i in range(len(self.tracks)-1, -1, -1):
+        #     _box = pos[i].clone().cpu().numpy()
+        #     x0, y0, x1, y1 = _box
+        #     x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+        #     cv2.rectangle(_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
+        #     cv2.putText(_img, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+        # cv2.imwrite(f'./output/frog_log_0830/frame_{self.im_index}_all_origin_pos.jpg', _img)
+
+        if self.do_fovea_logs:
+            self.fovea_logger.write_log(f"\tIn regress_tracks, optimized boxes and scores:")
+            for i in range(len(self.tracks)-1, -1, -1):
+                self.fovea_logger.write_log(f"\t\t{i} {boxes[i]}, {scores[i]}")
+            _boxes, _scores = self.obj_detect.predict_boxes(pos)
+            self.fovea_logger.write_log(f"\tIn regress_tracks, boxes and scores without optimization:")
+            for i in range(len(self.tracks)-1, -1, -1):
+                self.fovea_logger.write_log(f"\t\t{i} {_boxes[i]}, {_scores[i]}")
 
 
         # regress
