@@ -1,12 +1,13 @@
 import os
 import cv2
 import numpy as np
+import argparse
 
 
 OUTPUT_ROOT_ORIGIN = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-nofovea-0816'
-OUTPUT_ROOT_FOVEA = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-fovea-0816'
+OUTPUT_ROOT_FOVEA = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-fovea-0901'
 MOT17_DIR = '/home/user/frog/mot-dbt/tracking_wo_bnw/data/MOT17-down4.0/train'
-FP_OUTPUT_DIR = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/frog_debug/0818_fp'
+FP_OUTPUT_DIR = '/data/frog/2409/mot-dbt-debug/output/0901_fp'
 
 
 def read_fp_file(fp_file_path):
@@ -83,7 +84,8 @@ def calculate_iou_fp_gt_all_frames(gt_data, unique_fp_bbox,
                     if not all_classes and gt_bbox['conf'] < 1:
                         continue
                     iou = calculate_iou(gt_bbox['bbox'], fp_bbox)
-                    if iou > 0.1 and iou < 0.5:
+                    # if iou > 0.1 and iou < 0.5:
+                    if iou > 0.1:
                         intersect_gt_bbox[frame_id].append(gt_bbox)
                         intersect_gt_bbox_iou[frame_id].append(iou)
                         iou_output_file.write(f"\t\t{frame_id} {gt_bbox['bbox'][0]} {gt_bbox['bbox'][1]} {gt_bbox['bbox'][2]} {gt_bbox['bbox'][3]} {iou}\n")
@@ -136,7 +138,7 @@ def draw_bboxes(image, bboxes, color=(0, 0, 255)):
     """在图像上绘制unique false positive case的锚框"""
     for bbox in bboxes:
         x, y, x2, y2 = map(int, bbox)
-        cv2.rectangle(image, (x, y), (x2, y2), color, 2)
+        cv2.rectangle(image, (x, y), (x2, y2), color, 1)
     return image
 
 def draw_gt_bboxes(image, gt_bboxes, color=(0, 255, 0)):
@@ -187,6 +189,8 @@ def process_sequence(sequence_dir_a, sequence_dir_b, mot17_dir, output_dir):
                 cv2.imwrite(output_path, image)
             for unique_box  in unique_fps_a[frame_id]:
                 fp_output_file.write(f"{frame_id} {unique_box[0]} {unique_box[1]} {unique_box[2]} {unique_box[3]}\n")
+            
+            
     
 
 
@@ -205,5 +209,15 @@ def main(output_root_origin, output_root_fovea, mot17_dir, fp_output_dir):
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output_root_origin', type=str, default=OUTPUT_ROOT_ORIGIN)
+    parser.add_argument('--output_root_fovea', type=str, default=OUTPUT_ROOT_FOVEA)
+    parser.add_argument('--mot17_dir', type=str, default=MOT17_DIR)
+    parser.add_argument('--fp_output_dir', type=str, default=FP_OUTPUT_DIR)
+    args = parser.parse_args()
+
+    main(args.output_root_origin, args.output_root_fovea, args.mot17_dir, args.fp_output_dir)
+
     # 示例调用
-    main(OUTPUT_ROOT_ORIGIN, OUTPUT_ROOT_FOVEA, MOT17_DIR, FP_OUTPUT_DIR)
+    # main(OUTPUT_ROOT_ORIGIN, OUTPUT_ROOT_FOVEA, MOT17_DIR, FP_OUTPUT_DIR)

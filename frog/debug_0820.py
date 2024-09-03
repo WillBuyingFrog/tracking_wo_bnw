@@ -3,10 +3,10 @@ import os
 
 
 
-ANCHOR_SIZE_THRESHOLD = 480.0 * 270.0 * 0.005
+ANCHOR_SIZE_THRESHOLD = 480.0 * 270.0 * 0.0025
 
 OUTPUT_ROOT_ORIGIN = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-nofovea-0820'
-OUTPUT_ROOT_FOVEA = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-fovea-0830'
+OUTPUT_ROOT_FOVEA = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/tracktor/MOT17/tracktor-fovea-0901'
 MOT17_DIR = '/home/user/frog/mot-dbt/tracking_wo_bnw/data/MOT17-down4.0/train'
 RESULT_OUTPUT_DIR = '/home/user/frog/mot-dbt/tracking_wo_bnw/output/frog_debug/0830_match'
 

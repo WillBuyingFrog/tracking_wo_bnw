@@ -1,4 +1,4 @@
-name: tracktor-origin
+name: tracktor-fovea-0901
 # Subfolder name in output/tracker/
 module_name: MOT17
 desription:
@@ -19,7 +19,7 @@ reid_models: output/tracktor/reid/market1501/model/model-last.pth.tar
 interpolate: False
 # [False, 'debug', 'pretty']
 # compile video with: `ffmpeg -f image2 -framerate 15 -i %06d.jpg -vcodec libx264 -y movie.mp4 -vf scale=320:-1`
-write_images: False
+write_images: 'pretty'
 # load tracking results if available and only evaluate
 load_results: False
 # dataset (look into tracker/datasets/factory.py)
@@ -71,7 +71,7 @@ tracker:
   # Frog's foveation settings
   
   # Foveation switch
-  frog_fovea: False
+  frog_fovea: True
   # Fovea scale
   frog_fovea_scale: 0.5
   # Compression rate of the origin image
@@ -79,8 +79,8 @@ tracker:
   # Optimize regress_track
   frog_opt_regress: False
 
-  frog_logger: False
+  frog_logger: True
 
-  frog_logger_path: none
+  frog_logger_path: output/log_fovea/0901
 
 oracle: null

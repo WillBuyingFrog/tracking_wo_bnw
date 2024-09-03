@@ -2,6 +2,7 @@ import copy
 import os
 import time
 from os import path as osp
+import argparse
 
 import motmetrics as mm
 import numpy as np
@@ -28,10 +29,15 @@ from torchreid.utils import FeatureExtractor
 
 mm.lap.default_solver = 'lap'
 
+CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0901.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_origin.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_origin_down4.0.yaml'
 
 ex = Experiment()
 
-ex.add_config('experiments/cfgs/tracktor.yaml')
+
+
+ex.add_config(CONFIG_FILE)
 ex.add_named_config('oracle', 'experiments/cfgs/oracle_tracktor.yaml')
 
 
@@ -177,6 +183,25 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             _log.info(f"Writing predictions to: {output_dir}")
             seq.write_results(results, output_dir)
 
+        # 0902调试修改
+        # 将tracker记录的_raw_detections信息写入detections.txt中
+        with open(os.path.join(output_dir, f"{seq}", "detections.txt"), "w") as detection_file:
+            for frame_id, raw_detections in tracker._raw_detections.items():
+                # print(f"raw detections is {raw_detections} at frame {frame_id}")
+                # 遍历该帧的所有检测结果
+                raw_detection_fovea_mask = tracker._raw_detections_fovea_mask[frame_id]
+                for _index, single_raw_detection_score in enumerate(tracker._raw_detections_scores[frame_id]):
+                    single_raw_bbox = raw_detections[_index]
+                    single_raw_score = single_raw_detection_score
+                    single_raw_fovea_mask = raw_detection_fovea_mask[_index]
+                    detection_file.write(f"{frame_id} {single_raw_bbox[0]} {single_raw_bbox[1]} {single_raw_bbox[2]} {single_raw_bbox[3]} {single_raw_score} {single_raw_fovea_mask}\n")
+                
+        # 0903调试修改
+        # 写入每一帧中央凹区域的位置
+        with open(os.path.join(output_dir, f"{seq}", "fovea_positions.txt"), "w") as fovea_pos_file:
+            for frame_id, fovea_pos in tracker._fovea_positions.items():
+                fovea_pos_file.write(f"{frame_id} {fovea_pos[0]} {fovea_pos[1]} {fovea_pos[2]} {fovea_pos[3]}\n")
+
         if seq.no_gt:
             _log.info("No GT data for evaluation available.")
         else:
@@ -248,8 +273,8 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
                     # if frame_id % 50 == 0:
                     #     print(f"frame_id: {frame_id}, match_count: {len(match_list)}")
                         # print(f"bboxes: {match_boxes[frame_id]}")
-                    for bbox in match_boxes[frame_id]:
-                        match_file.write(f"{frame_id} {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n")
+                    for index, bbox in enumerate(match_boxes[frame_id]):
+                        match_file.write(f"{frame_id} {match_list[index]} {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n")
                 
             
             mot_accums.append(accum)
