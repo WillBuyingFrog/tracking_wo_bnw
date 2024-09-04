@@ -26,10 +26,13 @@ from tracktor.reid.config import (check_cfg, engine_run_kwargs,
                                   optimizer_kwargs, reset_config)
 from torchreid.utils import FeatureExtractor
 
+from PIL import Image
+
 
 mm.lap.default_solver = 'lap'
 
-CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0901.yaml'
+CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0903.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0901.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_origin.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_origin_down4.0.yaml'
 
@@ -183,9 +186,14 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             _log.info(f"Writing predictions to: {output_dir}")
             seq.write_results(results, output_dir)
 
+        
+        debug_output_dir = osp.join(output_dir, f"{seq}")
+        if not os.path.exists(debug_output_dir):
+            os.makedirs(debug_output_dir)
+
         # 0902调试修改
         # 将tracker记录的_raw_detections信息写入detections.txt中
-        with open(os.path.join(output_dir, f"{seq}", "detections.txt"), "w") as detection_file:
+        with open(os.path.join(debug_output_dir, "detections.txt"), "w") as detection_file:
             for frame_id, raw_detections in tracker._raw_detections.items():
                 # print(f"raw detections is {raw_detections} at frame {frame_id}")
                 # 遍历该帧的所有检测结果
@@ -194,13 +202,30 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
                     single_raw_bbox = raw_detections[_index]
                     single_raw_score = single_raw_detection_score
                     single_raw_fovea_mask = raw_detection_fovea_mask[_index]
-                    detection_file.write(f"{frame_id} {single_raw_bbox[0]} {single_raw_bbox[1]} {single_raw_bbox[2]} {single_raw_bbox[3]} {single_raw_score} {single_raw_fovea_mask}\n")
+                    detection_file.write(f"{frame_id + 1} {single_raw_bbox[0]} {single_raw_bbox[1]} {single_raw_bbox[2]} {single_raw_bbox[3]} {single_raw_score} {single_raw_fovea_mask}\n")
                 
         # 0903调试修改
         # 写入每一帧中央凹区域的位置
-        with open(os.path.join(output_dir, f"{seq}", "fovea_positions.txt"), "w") as fovea_pos_file:
-            for frame_id, fovea_pos in tracker._fovea_positions.items():
-                fovea_pos_file.write(f"{frame_id} {fovea_pos[0]} {fovea_pos[1]} {fovea_pos[2]} {fovea_pos[3]}\n")
+        if tracker.fovea_switch:
+            with open(os.path.join(output_dir, f"{seq}", "fovea_positions.txt"), "w") as fovea_pos_file:
+                for frame_id, fovea_pos in tracker._fovea_positions.items():
+                    fovea_pos_file.write(f"{frame_id + 1} {fovea_pos[0]} {fovea_pos[1]} {fovea_pos[2]} {fovea_pos[3]}\n")
+            
+            # 将截取的中央凹区域图像写入到指定目录下
+            fovea_raw_img_output_path = os.path.join(output_dir, f"{seq}", "fovea_raw_imgs")
+            if not os.path.exists(fovea_raw_img_output_path):
+                os.makedirs(fovea_raw_img_output_path)
+            
+            # 先清空之前生成的图片
+            for file in os.listdir(fovea_raw_img_output_path):
+                os.remove(os.path.join(fovea_raw_img_output_path, file))    
+            
+            for frame_id, fovea_raw_img in tracker._raw_fovea_images.items():
+                fovea_raw_img = np.transpose(fovea_raw_img, (1, 2, 0))
+                fovea_raw_img = (fovea_raw_img * 255).clip(0, 255)
+                fovea_raw_img = fovea_raw_img.astype(np.uint8)
+                fovea_raw_img_pil = Image.fromarray(fovea_raw_img)
+                fovea_raw_img_pil.save(os.path.join(fovea_raw_img_output_path, f"{(frame_id + 1):06d}.jpg"))
 
         if seq.no_gt:
             _log.info("No GT data for evaluation available.")
@@ -219,6 +244,9 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             fp_rows = events_df[events_df.Type == 'FP']
             # 筛选出所有标记为match的行
             match_rows = events_df[events_df.Type == 'MATCH']
+            
+            # 0903调试修改
+            # 记录所有id switch事件
             
             # 遍历筛选后的行，构建结果字典
             for index, row in fp_rows.iterrows():
@@ -248,15 +276,11 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
                 match_events[frame_id].append(hyp_id)
                 match_boxes[frame_id].append(results[hyp_id][frame_id][:4])
             
-            output_fp_dir = osp.join(output_dir, f"{seq}")
-            output_match_dir = osp.join(output_dir, f"{seq}")
-            # 如果没有output_fp_dir,就要先创建
-            if not osp.exists(output_fp_dir):
-                os.makedirs(output_fp_dir)
+            
 
             # print(f"Root dir for output fp files: {output_fp_dir}")
             
-            with open(osp.join(output_fp_dir, "fp.txt"), "w") as fp_file:
+            with open(osp.join(debug_output_dir, "fp.txt"), "w") as fp_file:
 
                 # 遍历字典，输出每一帧的FP个数
                 for frame_id, fp_list in fp_events.items():
@@ -268,7 +292,7 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
                         fp_file.write(f"{frame_id} {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n")
 
             
-            with open(osp.join(output_fp_dir, "match.txt"), "w") as match_file:
+            with open(osp.join(debug_output_dir, "match.txt"), "w") as match_file:
                 for frame_id, match_list in match_events.items():
                     # if frame_id % 50 == 0:
                     #     print(f"frame_id: {frame_id}, match_count: {len(match_list)}")

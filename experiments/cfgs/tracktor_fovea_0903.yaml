@@ -1,4 +1,4 @@
-name: tracktor-fovea-0901
+name: tracktor-fovea-0903
 # Subfolder name in output/tracker/
 module_name: MOT17
 desription:
@@ -81,6 +81,6 @@ tracker:
 
   frog_logger: True
 
-  frog_logger_path: output/log_fovea/0901
+  frog_logger_path: output/log_fovea/0903
 
 oracle: null

@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from scipy.optimize import linear_sum_assignment
 from torchreid import metrics
+import torch.nn.functional as F
 from torchvision.ops.boxes import clip_boxes_to_image, nms
 from torchvision.transforms import ToTensor, ToPILImage
 
@@ -79,6 +80,9 @@ class Tracker:
         self._raw_detections_scores = {}
         self._raw_detections_fovea_mask = {}
         self._fovea_positions = {}
+        
+        # 0903调试修改
+        self._raw_fovea_images = {}
 
 
     def init_fovea_optimizer(self, img_width, img_height):
@@ -477,87 +481,118 @@ class Tracker:
         else:
             boxes, scores = self.obj_detect.detect(blob['img'])
             if self.fovea_switch:
-                    # TODO 实现基于模拟退火优化中央凹区域的效果
-                    # 目前先默认中央凹区域永远是最中间的部分
-                    img_h, img_w = origin_img.size(1), origin_img.size(2)
-                    fovea_x, fovea_y = img_w // 4, img_h // 4
-                    fovea_w, fovea_h = img_w // 2, img_h // 2
-                    # 将blob['img'][0]转成cv2格式
-                    # cv2_img = blob['img'][0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                # TODO 实现基于模拟退火优化中央凹区域的效果
+                # 目前先默认中央凹区域永远是最中间的部分
+                img_h, img_w = origin_img.size(1), origin_img.size(2)
+                fovea_x, fovea_y = img_w // 4, img_h // 4
+                fovea_w, fovea_h = img_w // 2, img_h // 2
+                # 将blob['img'][0]转成cv2格式
+                # cv2_img = blob['img'][0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
 
-                    prev_online_boxes = []
+                prev_online_boxes = []
 
-                    if len(self.tracks):
-                        for track in self.tracks:
-                            track_pos = track.pos[0].cpu().numpy()
-                            prev_online_boxes.append(track_pos)
+                if len(self.tracks):
+                    for track in self.tracks:
+                        track_pos = track.pos[0].cpu().numpy()
+                        prev_online_boxes.append(track_pos)
 
-                    fovea_x, fovea_y = self.fovea_optimizer.get_fovea_position(current_frame_img=blob['img'][0],
-                                                            prev_online_boxes=prev_online_boxes,
-                                                            visualize=False, visualize_mark=f'{self.im_index}', visualize_path='./debug/')
-                    # print('Fovea optimize complete')
-                    # 如果fovea_x, fovea_y is NaN, 则使用默认值
-                    if np.isnan(fovea_x) or np.isnan(fovea_y):
-                        fovea_x, fovea_y = int(img_w / 4 / self.compress_ratio[0]), int(img_h / 4 / self.compress_ratio[1])
-                    # 放大回原图尺寸
-                    compressed_fovea_pos = (fovea_x, fovea_y, fovea_w / self.compress_ratio[0], fovea_h / self.compress_ratio[1])
-                    # print(f'[Before]fovea_x: {fovea_x}, fovea_y: {fovea_y}')
-                    fovea_x, fovea_y = int(fovea_x * self.compress_ratio[0]), int(fovea_y * self.compress_ratio[1])
+                fovea_x, fovea_y = self.fovea_optimizer.get_fovea_position(current_frame_img=blob['img'][0],
+                                                        prev_online_boxes=prev_online_boxes,
+                                                        visualize=False, visualize_mark=f'{self.im_index}', visualize_path='./debug/')
+                # 如果fovea_x, fovea_y is NaN, 则使用默认值
+                if np.isnan(fovea_x) or np.isnan(fovea_y):
+                    fovea_x, fovea_y = int(img_w / 4 / self.compress_ratio[0]), int(img_h / 4 / self.compress_ratio[1])
+                # 放大回原图尺寸
+                compressed_fovea_pos = (fovea_x, fovea_y, fovea_w / self.compress_ratio[0], fovea_h / self.compress_ratio[1])
+                # print(f'[Before]fovea_x: {fovea_x}, fovea_y: {fovea_y}')
+                fovea_x, fovea_y = int(fovea_x * self.compress_ratio[0]), int(fovea_y * self.compress_ratio[1])
 
-                    
-                    fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
-                    self.fovea_pos_in_original_image = fovea_pos
-                    # print(f'fovea_pos: {fovea_pos}')
-                    
-                    # 截取出给定中央凹区域tlwh对应的原始图像内容
-                    # origin_img 是一个pytorch的tensor张量
-                    fovea_img = origin_img[:, fovea_y:fovea_y+fovea_h, fovea_x:fovea_x+fovea_w]
-                    _fovea_img = torch.stack([fovea_img], dim=0)
-                    # print(f'origin_img shape: {origin_img.shape}, fovea_img shape: {fovea_img.shape}')
+                
+                fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
+                self.fovea_pos_in_original_image = fovea_pos
+                # print(f'fovea_pos: {fovea_pos}')
+                
+                # 截取出给定中央凹区域tlwh对应的原始图像内容
+                # origin_img 是一个pytorch的tensor张量
+                fovea_img = origin_img[:, fovea_y:fovea_y+fovea_h, fovea_x:fovea_x+fovea_w]
 
-                    # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
-                    # fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
-                    self.origin_obj_detect.load_image(_fovea_img)
-                    fovea_boxes, fovea_scores = self.obj_detect.detect(_fovea_img)
+                _unsqueezed_fovea_img = fovea_img.unsqueeze(0)
+                # 将fovea_img的长宽各下采样一半
 
-                    # 将所有中央凹区域得到的目标boxes转换到blob['img']上
-                    processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
-                                                    compress_ratio=self.compress_ratio)
-                    
-                    # 0830修改：中央凹区域内的锚框，只选用processed_fovea_boxes
-                    new_boxes = []
-                    new_scores = []
-                    # 遍历所有从低清大区域图中得出的锚框，在中央凹区域中的，就不加入到new_boxes中
-                    for box, score in zip(boxes, scores):
-                        if not check_bbox_in_fovea_region(box, compressed_fovea_pos):
-                            new_boxes.append(box)
-                            new_scores.append(score)
-                    
-                    
-                    # if self.do_fovea_logs and self.im_index % 10 == 0:
-                    #     # 打印所有需要添加的锚框
-                    #     self.fovea_logger.write_log(f'{len(new_boxes)} new valid boxes in fovea image')
-                    #     for box in new_boxes:
-                    #         self.fovea_logger.write_log(f'\t {box}')
-                    # if len(new_boxes):
-                    #     new_boxes = torch.stack(new_boxes).cuda()
-                    #     new_scores = torch.tensor(new_scores).cuda()
-                    #     # 将经过变换的中央凹区域boxes、scores与已有的boxes、scores进行合并
-                    #     boxes = torch.cat([boxes, new_boxes], dim=0)
-                    #     scores = torch.cat([scores, new_scores], dim=0)
-                    if len(new_boxes):
-                        new_boxes = torch.stack(new_boxes).cuda()
-                        new_scores = torch.tensor(new_scores).cuda()
+                FOVEA_SAMPLE_SCALE = 1.0
 
-                        boxes = torch.cat([new_boxes, processed_fovea_boxes], dim=0)
-                        scores = torch.cat([new_scores, fovea_scores], dim=0)
-                    elif len(processed_fovea_boxes):
-                        boxes = processed_fovea_boxes
-                        scores = torch.tensor(fovea_scores).cuda()
+                _unsqueezed_comp_fovea_img = F.interpolate(_unsqueezed_fovea_img, scale_factor=FOVEA_SAMPLE_SCALE, mode='bilinear', align_corners=False)
 
-                    # 0903调试修改
-                    # 记录本帧的中央凹区域在
-                    self._fovea_positions[self.im_index] = compressed_fovea_pos
+                print(f"Shape of _unsqueezed_comp_fovea_img: {_unsqueezed_comp_fovea_img.shape}")
+                
+                # 0903调试修改
+                # 保存每一帧中央凹截取的图片，以供调试
+                self._raw_fovea_images[self.im_index] = fovea_img.clone().cpu().numpy()
+
+                _fovea_img = torch.stack([fovea_img], dim=0)
+                # print(f'origin_img shape: {origin_img.shape}, fovea_img shape: {fovea_img.shape}')
+
+                # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
+                fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
+                # self.origin_obj_detect.load_image(_fovea_img)
+
+                # 0903修改：高清小图也下采样，长宽下采样到原来的一半
+                # fovea_boxes, fovea_scores = self.obj_detect.detect(_unsqueezed_comp_fovea_img)
+                # 将fovea_boxes转换到未经下采样的高清小图的坐标中
+                _comp_fovea_boxes = fovea_boxes.clone()
+                fovea_boxes = fovea_boxes / FOVEA_SAMPLE_SCALE
+
+                # TEMP_FOVEA_IMAGE_OUTPUT_PATH = '/data/frog/2409/mot-dbt-debug/output_24autumn/2409/temp'
+                # if self.im_index % 10 == 0:
+                #     # 将fovea_boxes画到fovea_img上
+                #     _temp_fovea_img = fovea_img.permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                #     _temp_fovea_img2 = _unsqueezed_comp_fovea_img[0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                #     _temp_fovea_img = cv2.cvtColor(_temp_fovea_img, cv2.COLOR_RGB2BGR)
+                #     _temp_fovea_img2 = cv2.cvtColor(_temp_fovea_img2, cv2.COLOR_RGB2BGR)
+                #     for i in range(len(fovea_boxes)):
+                #         _box = fovea_boxes[i].clone().cpu().numpy()
+                #         x0, y0, x1, y1 = _box
+                #         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+                #         cv2.rectangle(_temp_fovea_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
+                #         cv2.putText(_temp_fovea_img, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                #     cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_fovea.jpg', _temp_fovea_img)
+
+                #     for i in range(len(_comp_fovea_boxes)):
+                #         _box = _comp_fovea_boxes[i].clone().cpu().numpy()
+                #         x0, y0, x1, y1 = _box
+                #         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+                #         cv2.rectangle(_temp_fovea_img2, (x0, y0), (x1, y1), (0, 255, 0), 1)
+                #         cv2.putText(_temp_fovea_img2, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                #     cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_comp_fovea.jpg', _temp_fovea_img2)
+
+                
+
+                # 将所有中央凹区域得到的目标boxes转换到blob['img']上
+                processed_fovea_boxes = get_processed_boxes(fovea_boxes=fovea_boxes, fovea_pos=fovea_pos,
+                                                compress_ratio=self.compress_ratio)
+                
+                # 0830修改：中央凹区域内的锚框，只选用processed_fovea_boxes
+                new_boxes = []
+                new_scores = []
+                # 遍历所有从低清大区域图中得出的锚框，在中央凹区域中的，就不加入到new_boxes中
+                for box, score in zip(boxes, scores):
+                    if not check_bbox_in_fovea_region(box, compressed_fovea_pos):
+                        new_boxes.append(box)
+                        new_scores.append(score)
+                
+                if len(new_boxes):
+                    new_boxes = torch.stack(new_boxes).cuda()
+                    new_scores = torch.tensor(new_scores).cuda()
+
+                    boxes = torch.cat([new_boxes, processed_fovea_boxes], dim=0)
+                    scores = torch.cat([new_scores, fovea_scores], dim=0)
+                elif len(processed_fovea_boxes):
+                    boxes = processed_fovea_boxes
+                    scores = torch.tensor(fovea_scores).cuda()
+
+                # 0903调试修改
+                # 记录本帧的中央凹区域在
+                self._fovea_positions[self.im_index] = compressed_fovea_pos
 
         if boxes.nelement() > 0:
             boxes = clip_boxes_to_image(boxes, blob['img'].shape[-2:])
