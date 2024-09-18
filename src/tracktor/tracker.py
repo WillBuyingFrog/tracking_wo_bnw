@@ -75,6 +75,9 @@ class Tracker:
             self.frog_logger_path = f'{__path}/fovea_logger.log'
             self.fovea_logger = FrogLogger(self.frog_logger_path)
         
+        # 0917调试修改
+        self.fovea_oracle = tracker_cfg['frog_fovea_oracle']
+        
         # 0902调试修改
         self._raw_detections = {}
         self._raw_detections_scores = {}
@@ -83,6 +86,7 @@ class Tracker:
         
         # 0903调试修改
         self._raw_fovea_images = {}
+        
 
 
     def init_fovea_optimizer(self, img_width, img_height):
@@ -485,9 +489,7 @@ class Tracker:
                 # 目前先默认中央凹区域永远是最中间的部分
                 img_h, img_w = origin_img.size(1), origin_img.size(2)
                 fovea_x, fovea_y = img_w // 4, img_h // 4
-                fovea_w, fovea_h = img_w // 2, img_h // 2
-                # 将blob['img'][0]转成cv2格式
-                # cv2_img = blob['img'][0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                fovea_w, fovea_h = int(img_w * self.fovea_scale), int(img_h * self.fovea_scale)
 
                 prev_online_boxes = []
 
@@ -504,43 +506,93 @@ class Tracker:
                     fovea_x, fovea_y = int(img_w / 4 / self.compress_ratio[0]), int(img_h / 4 / self.compress_ratio[1])
                 # 放大回原图尺寸
                 compressed_fovea_pos = (fovea_x, fovea_y, fovea_w / self.compress_ratio[0], fovea_h / self.compress_ratio[1])
-                # print(f'[Before]fovea_x: {fovea_x}, fovea_y: {fovea_y}')
                 fovea_x, fovea_y = int(fovea_x * self.compress_ratio[0]), int(fovea_y * self.compress_ratio[1])
 
                 
                 fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
                 self.fovea_pos_in_original_image = fovea_pos
-                # print(f'fovea_pos: {fovea_pos}')
                 
                 # 截取出给定中央凹区域tlwh对应的原始图像内容
-                # origin_img 是一个pytorch的tensor张量
                 fovea_img = origin_img[:, fovea_y:fovea_y+fovea_h, fovea_x:fovea_x+fovea_w]
 
-                _unsqueezed_fovea_img = fovea_img.unsqueeze(0)
+                # 0917修改
+                # 探究如果没有scale invariance相关的负面影响，检测结果会怎么样
+                oracle_fovea_img = origin_img.clone()
+
+                # _unsqueezed_fovea_img = fovea_img.unsqueeze(0)
                 # 将fovea_img的长宽各下采样一半
 
-                FOVEA_SAMPLE_SCALE = 1.0
+                # FOVEA_SAMPLE_SCALE = 0.5
 
-                _unsqueezed_comp_fovea_img = F.interpolate(_unsqueezed_fovea_img, scale_factor=FOVEA_SAMPLE_SCALE, mode='bilinear', align_corners=False)
+                # _unsqueezed_comp_fovea_img = F.interpolate(_unsqueezed_fovea_img, scale_factor=FOVEA_SAMPLE_SCALE, mode='bilinear', align_corners=False)
+                # # 加白色padding，长方向加(fovea_w/4)，宽方向加(fovea_h/4)
+                # _unsqueezed_comp_fovea_img = F.pad(_unsqueezed_comp_fovea_img, (int(fovea_w/4), int(fovea_w/4), int(fovea_h/4), int(fovea_h/4)), mode='constant', value=255)
 
-                print(f"Shape of _unsqueezed_comp_fovea_img: {_unsqueezed_comp_fovea_img.shape}")
+                # # print(f"Shape of _unsqueezed_comp_fovea_img: {_unsqueezed_comp_fovea_img.shape}")
                 
-                # 0903调试修改
-                # 保存每一帧中央凹截取的图片，以供调试
-                self._raw_fovea_images[self.im_index] = fovea_img.clone().cpu().numpy()
+                # # 0903调试修改
+                # # 保存每一帧中央凹截取的图片，以供调试
+                # # self._raw_fovea_images[self.im_index] = fovea_img.clone().cpu().numpy()
+                # self._raw_fovea_images[self.im_index] = _unsqueezed_comp_fovea_img[0].clone().cpu().numpy()
 
                 _fovea_img = torch.stack([fovea_img], dim=0)
+                _oracle_fovea_img = torch.stack([oracle_fovea_img], dim=0)
                 # print(f'origin_img shape: {origin_img.shape}, fovea_img shape: {fovea_img.shape}')
 
                 # 送入中央凹区域的目标检测器进行检测，获得该目标检测器输出的boxes和scores
-                fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
-                # self.origin_obj_detect.load_image(_fovea_img)
+                if not self.fovea_oracle:
+                    fovea_boxes, fovea_scores = self.origin_obj_detect.detect(_fovea_img)
+                else:
 
-                # 0903修改：高清小图也下采样，长宽下采样到原来的一半
+                # 0917修改
+                # 检测原始全图,保留中央凹区域（换算到原始图像中）内的锚框
+                # 这里使用和检测低清大图时所用的权重（也就是tracktor提供的权重）
+                    oracle_fovea_boxes, oracle_fovea_scores = self.obj_detect.detect(_oracle_fovea_img)
+                    oracle_fovea_boxes_list, oracle_fovea_scores_list = [], []
+
+                    # _temp_oracle_fovea_img = oracle_fovea_img.permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                    # _temp_oracle_fovea_img = cv2.cvtColor(_temp_oracle_fovea_img, cv2.COLOR_RGB2BGR)
+                    # _temp_fovea_img = fovea_img.permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                    # _temp_fovea_img = cv2.cvtColor(_temp_fovea_img, cv2.COLOR_RGB2BGR)
+                    
+                    for index, _box in enumerate(oracle_fovea_boxes):
+                        _box = _box.clone().cpu().numpy()
+                        x0, y0, x1, y1 = _box
+                        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+                        if check_bbox_in_fovea_region(_box, fovea_pos):
+                            # 要把_box的坐标变换到高清小图的坐标上
+                            _box[0], _box[2] = _box[0] - fovea_x, _box[2] - fovea_x
+                            _box[1], _box[3] = _box[1] - fovea_y, _box[3] - fovea_y
+                            oracle_fovea_boxes_list.append(_box)
+                            oracle_fovea_scores_list.append(oracle_fovea_scores[index])
+                            # 把锚框画在oracle_fovea_img上
+                            # cv2.rectangle(_temp_oracle_fovea_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
+                            # cv2.rectangle(_temp_fovea_img, (int(_box[0]), int(_box[1])), (int(_box[2]), int(_box[3])), (0, 255, 0), 1)
+                    
+                    # 每十帧保存一次图片
+                    # TEMP_FOVEA_IMAGE_OUTPUT_PATH = '/data/frog/2409/mot-dbt-debug/output_24autumn/2409/temp'
+                    # if self.im_index % 10 == 0:
+                    #     print(f"Saving fovea anchors from oracle detector at frame {self.im_index}")
+                    #     print(f"Fovea position is {fovea_pos}")
+                    #     cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_oracle_fovea.jpg', _temp_oracle_fovea_img)
+                    #     cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_fovea.jpg', _temp_fovea_img)
+
+
+                    # 转换为tensor
+                    oracle_fovea_boxes = torch.tensor(oracle_fovea_boxes_list).cuda()
+                    oracle_fovea_scores = torch.tensor(oracle_fovea_scores_list).cuda()
+
+                    fovea_boxes = oracle_fovea_boxes
+                    fovea_scores = oracle_fovea_scores
+
                 # fovea_boxes, fovea_scores = self.obj_detect.detect(_unsqueezed_comp_fovea_img)
-                # 将fovea_boxes转换到未经下采样的高清小图的坐标中
-                _comp_fovea_boxes = fovea_boxes.clone()
-                fovea_boxes = fovea_boxes / FOVEA_SAMPLE_SCALE
+                # # 将fovea_boxes转换到未经下采样的高清小图的坐标中
+                # _comp_fovea_boxes = fovea_boxes.clone()
+                # fovea_boxes[:, 0] -= int(fovea_w / 4)
+                # fovea_boxes[:, 1] -= int(fovea_h / 4)
+                # fovea_boxes[:, 2] -= int(fovea_w / 4)
+                # fovea_boxes[:, 3] -= int(fovea_h / 4)
+                # fovea_boxes = fovea_boxes / FOVEA_SAMPLE_SCALE
 
                 # TEMP_FOVEA_IMAGE_OUTPUT_PATH = '/data/frog/2409/mot-dbt-debug/output_24autumn/2409/temp'
                 # if self.im_index % 10 == 0:
@@ -591,7 +643,7 @@ class Tracker:
                     scores = torch.tensor(fovea_scores).cuda()
 
                 # 0903调试修改
-                # 记录本帧的中央凹区域在
+                # 记录本帧的中央凹区域在压缩图像中的位置
                 self._fovea_positions[self.im_index] = compressed_fovea_pos
 
         if boxes.nelement() > 0:
@@ -660,7 +712,10 @@ class Tracker:
 
             # regress
             if self.fovea_switch:
-                person_scores = self.regress_tracks(blob, _fovea_img, compressed_fovea_pos)
+                # 0914修改
+                # 先去掉中央凹化的轨迹回归
+                # person_scores = self.regress_tracks(blob, _fovea_img, compressed_fovea_pos)
+                person_scores = self.regress_tracks(blob, None, None)
             else:
                 person_scores = self.regress_tracks(blob)
 

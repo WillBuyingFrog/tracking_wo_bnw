@@ -47,7 +47,7 @@ def box_iou(box1, box2):
 
 def check_bbox_in_fovea_region(bbox, compressed_fovea_pos):
     """
-    检查某个tlbr的bbox是否在tlwh表示下的中央凹区域(低清大区域图坐标)内。
+    检查某个tlbr的bbox是否在tlwh表示下的中央凹区域内。
 
     Args:
         bbox(torch.Tensor): 需要检查的bbox。

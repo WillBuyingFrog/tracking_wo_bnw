@@ -12,6 +12,10 @@ FP_OUTPUT_DIR = '/data/frog/2409/mot-dbt-debug/output/0901_fp'
 
 def read_fp_file(fp_file_path):
     """读取fp.txt文件，返回一个字典，键是帧编号，值是锚框列表"""
+
+    # fp.txt文件记录的bbox是test_tracktor.py中送入MOTAccumulator的原始数据
+    # 因此不需要额外处理
+    # 这和gt.txt中需要进行-1预处理的数据不一样
     fp_data = {}
     with open(fp_file_path, 'r') as file:
         for line in file:
@@ -37,8 +41,10 @@ def read_gt_file(gt_file_path, frame_start=0, frame_end=-1):
                 gt_data[frame_id] = []
             bbox = list(map(float, parts[2:6]))
             # 转换成tlbr格式
-            bbox[2] += bbox[0]  
-            bbox[3] += bbox[1]
+            bbox[0] -= 1
+            bbox[1] -= 1
+            bbox[2] = bbox[0] + bbox[2]
+            bbox[3] = bbox[1] + bbox[3]
             conf = int(parts[6])
             class_name = int(parts[7])
             visibility = float(parts[8])

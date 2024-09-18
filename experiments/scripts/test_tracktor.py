@@ -31,7 +31,12 @@ from PIL import Image
 
 mm.lap.default_solver = 'lap'
 
-CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0903.yaml'
+CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0917.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0914.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0912.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0911.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0910.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0903.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0901.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_origin.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_origin_down4.0.yaml'
@@ -110,7 +115,18 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             obj_detect_state_dict = obj_detect_state_dict['model']
 
         obj_detect.load_state_dict(obj_detect_state_dict)
-        origin_obj_detect.load_state_dict(obj_detect_state_dict)
+
+        # 0909修改
+        try:
+            FOVEA_OBJ_DETECT_MODEL_PATH = tracker['frog_fovea_obj_detect_model_path']
+        except:
+            print("No fovea obj detect model path found, use default path")
+            FOVEA_OBJ_DETECT_MODEL_PATH = 'output/faster_rcnn_fpn_training_mot_17/fovea_0909_02_model_epoch_20.model'
+        print(f"Loading fovea obj detect model from {FOVEA_OBJ_DETECT_MODEL_PATH}")
+        origin_obj_detect_state_dict = torch.load(FOVEA_OBJ_DETECT_MODEL_PATH, map_location=lambda storage, loc: storage)
+
+        origin_obj_detect.load_state_dict(origin_obj_detect_state_dict)
+
         obj_detects.append(obj_detect)
         origin_obj_detects.append(origin_obj_detect)
 
@@ -206,26 +222,26 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
                 
         # 0903调试修改
         # 写入每一帧中央凹区域的位置
-        if tracker.fovea_switch:
-            with open(os.path.join(output_dir, f"{seq}", "fovea_positions.txt"), "w") as fovea_pos_file:
-                for frame_id, fovea_pos in tracker._fovea_positions.items():
-                    fovea_pos_file.write(f"{frame_id + 1} {fovea_pos[0]} {fovea_pos[1]} {fovea_pos[2]} {fovea_pos[3]}\n")
+        # if tracker.fovea_switch:
+        #     with open(os.path.join(output_dir, f"{seq}", "fovea_positions.txt"), "w") as fovea_pos_file:
+        #         for frame_id, fovea_pos in tracker._fovea_positions.items():
+        #             fovea_pos_file.write(f"{frame_id + 1} {fovea_pos[0]} {fovea_pos[1]} {fovea_pos[2]} {fovea_pos[3]}\n")
             
-            # 将截取的中央凹区域图像写入到指定目录下
-            fovea_raw_img_output_path = os.path.join(output_dir, f"{seq}", "fovea_raw_imgs")
-            if not os.path.exists(fovea_raw_img_output_path):
-                os.makedirs(fovea_raw_img_output_path)
+        #     # 将截取的中央凹区域图像写入到指定目录下
+        #     fovea_raw_img_output_path = os.path.join(output_dir, f"{seq}", "fovea_raw_imgs")
+        #     if not os.path.exists(fovea_raw_img_output_path):
+        #         os.makedirs(fovea_raw_img_output_path)
             
-            # 先清空之前生成的图片
-            for file in os.listdir(fovea_raw_img_output_path):
-                os.remove(os.path.join(fovea_raw_img_output_path, file))    
+        #     # 先清空之前生成的图片
+        #     for file in os.listdir(fovea_raw_img_output_path):
+        #         os.remove(os.path.join(fovea_raw_img_output_path, file))    
             
-            for frame_id, fovea_raw_img in tracker._raw_fovea_images.items():
-                fovea_raw_img = np.transpose(fovea_raw_img, (1, 2, 0))
-                fovea_raw_img = (fovea_raw_img * 255).clip(0, 255)
-                fovea_raw_img = fovea_raw_img.astype(np.uint8)
-                fovea_raw_img_pil = Image.fromarray(fovea_raw_img)
-                fovea_raw_img_pil.save(os.path.join(fovea_raw_img_output_path, f"{(frame_id + 1):06d}.jpg"))
+        #     for frame_id, fovea_raw_img in tracker._raw_fovea_images.items():
+        #         fovea_raw_img = np.transpose(fovea_raw_img, (1, 2, 0))
+        #         fovea_raw_img = (fovea_raw_img * 255).clip(0, 255)
+        #         fovea_raw_img = fovea_raw_img.astype(np.uint8)
+        #         fovea_raw_img_pil = Image.fromarray(fovea_raw_img)
+        #         fovea_raw_img_pil.save(os.path.join(fovea_raw_img_output_path, f"{(frame_id + 1):06d}.jpg"))
 
         if seq.no_gt:
             _log.info("No GT data for evaluation available.")
