@@ -117,8 +117,12 @@ class MOTSequence(Dataset):
                         x1 = int(row[2]) - 1
                         y1 = int(row[3]) - 1
                         # This -1 accounts for the width (width of 1 x1=x2)
-                        x2 = x1 + int(row[4]) - 1
-                        y2 = y1 + int(row[5]) - 1
+                        # 这里作者使用了像素中心点坐标来加载GT，但Faster RCNN给出的坐标是以像素左上角为基准的
+                        # 那么当锚框很小的时候，这样的GT加载方式就会带来误差
+                        # x2 = x1 + int(row[4]) - 1
+                        # y2 = y1 + int(row[5]) - 1
+                        x2 = x1 + int(row[4])
+                        y2 = y1 + int(row[5])
                         bb = np.array([x1,y1,x2,y2], dtype=np.float32)
                         boxes[int(row[0])][int(row[1])] = bb
                         visibility[int(row[0])][int(row[1])] = float(row[8])

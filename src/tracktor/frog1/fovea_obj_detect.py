@@ -77,6 +77,9 @@ def get_processed_boxes(fovea_boxes, fovea_pos, compress_ratio=[3.0, 3.0]):
     # 将origin_boxes转成pytorch tensor
     processed_boxes = torch.tensor(processed_boxes, dtype=torch.float32)
 
+    # if(len(processed_boxes) > 0):
+    #     print(f"\t\tprocessed_boxes[0]: {processed_boxes[0]}")
+
     # 将Processed_boxes挪到cuda上
     if torch.cuda.is_available():
         processed_boxes = processed_boxes.cuda()

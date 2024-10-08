@@ -1,4 +1,4 @@
-name: tracktor-origin
+name: tracktor-fovea-1006-01
 # Subfolder name in output/tracker/
 module_name: MOT17
 desription:
@@ -12,6 +12,7 @@ network: fpn
 
 # fpn
 obj_detect_models: output/faster_rcnn_fpn_training_mot_17/model_epoch_27.model
+# fovea_obj_detect_models: output/faster_rcnn_fpn_training_mot_17/fovea_model_epoch_13.model
 # obj_detect_model: output/faster_rcnn_fpn/faster_rcnn_fpn_training_mot_20/model_epoch_27.model
 
 reid_models: output/tracktor/reid/market1501/model/model-last.pth.tar
@@ -71,17 +72,19 @@ tracker:
   # Frog's foveation settings
   
   # Foveation switch
-  frog_fovea: False
+  frog_fovea: True
   # Fovea scale
   frog_fovea_scale: 0.5
   # Compression rate of the origin image
-  frog_compress_ratio: [4.0, 4.0]
+  frog_compress_ratio: [3.0, 3.0]
   # Optimize regress_track
   frog_opt_regress: False
 
-  frog_logger: False
+  frog_logger: True
 
-  frog_logger_path: none
+  frog_logger_path: output/log_fovea/1006
+
+  # frog_fovea_obj_detect_model_path: none
 
   frog_fovea_oracle: False
 

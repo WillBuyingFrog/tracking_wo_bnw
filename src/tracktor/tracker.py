@@ -504,12 +504,15 @@ class Tracker:
                 # 如果fovea_x, fovea_y is NaN, 则使用默认值
                 if np.isnan(fovea_x) or np.isnan(fovea_y):
                     fovea_x, fovea_y = int(img_w / 4 / self.compress_ratio[0]), int(img_h / 4 / self.compress_ratio[1])
-                # 放大回原图尺寸
+                
                 compressed_fovea_pos = (fovea_x, fovea_y, fovea_w / self.compress_ratio[0], fovea_h / self.compress_ratio[1])
+                # 坐标映射回原始图像上
                 fovea_x, fovea_y = int(fovea_x * self.compress_ratio[0]), int(fovea_y * self.compress_ratio[1])
+                
 
                 
                 fovea_pos = (fovea_x, fovea_y, fovea_w, fovea_h)
+                # print(f"\tfovea pos at frame {self.im_index}: {fovea_pos}")
                 self.fovea_pos_in_original_image = fovea_pos
                 
                 # 截取出给定中央凹区域tlwh对应的原始图像内容
@@ -594,28 +597,28 @@ class Tracker:
                 # fovea_boxes[:, 3] -= int(fovea_h / 4)
                 # fovea_boxes = fovea_boxes / FOVEA_SAMPLE_SCALE
 
-                # TEMP_FOVEA_IMAGE_OUTPUT_PATH = '/data/frog/2409/mot-dbt-debug/output_24autumn/2409/temp'
-                # if self.im_index % 10 == 0:
-                #     # 将fovea_boxes画到fovea_img上
-                #     _temp_fovea_img = fovea_img.permute(1, 2, 0).mul(255).byte().cpu().numpy()
-                #     _temp_fovea_img2 = _unsqueezed_comp_fovea_img[0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
-                #     _temp_fovea_img = cv2.cvtColor(_temp_fovea_img, cv2.COLOR_RGB2BGR)
-                #     _temp_fovea_img2 = cv2.cvtColor(_temp_fovea_img2, cv2.COLOR_RGB2BGR)
-                #     for i in range(len(fovea_boxes)):
-                #         _box = fovea_boxes[i].clone().cpu().numpy()
-                #         x0, y0, x1, y1 = _box
-                #         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-                #         cv2.rectangle(_temp_fovea_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
-                #         cv2.putText(_temp_fovea_img, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
-                #     cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_fovea.jpg', _temp_fovea_img)
+                TEMP_FOVEA_IMAGE_OUTPUT_PATH = '/data/frog/2409/mot-dbt-debug/output_24autumn/2409/temp'
+                if self.im_index % 10 == 0:
+                    # 将fovea_boxes画到fovea_img上
+                    _temp_fovea_img = fovea_img.permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                    # _temp_fovea_img2 = _unsqueezed_comp_fovea_img[0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+                    _temp_fovea_img = cv2.cvtColor(_temp_fovea_img, cv2.COLOR_RGB2BGR)
+                    # _temp_fovea_img2 = cv2.cvtColor(_temp_fovea_img2, cv2.COLOR_RGB2BGR)
+                    for i in range(len(fovea_boxes)):
+                        _box = fovea_boxes[i].clone().cpu().numpy()
+                        x0, y0, x1, y1 = _box
+                        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+                        cv2.rectangle(_temp_fovea_img, (x0, y0), (x1, y1), (0, 255, 0), 1)
+                        cv2.putText(_temp_fovea_img, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                    cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_fovea.jpg', _temp_fovea_img)
 
-                #     for i in range(len(_comp_fovea_boxes)):
-                #         _box = _comp_fovea_boxes[i].clone().cpu().numpy()
-                #         x0, y0, x1, y1 = _box
-                #         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-                #         cv2.rectangle(_temp_fovea_img2, (x0, y0), (x1, y1), (0, 255, 0), 1)
-                #         cv2.putText(_temp_fovea_img2, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
-                #     cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_comp_fovea.jpg', _temp_fovea_img2)
+                    # for i in range(len(_comp_fovea_boxes)):
+                    #     _box = _comp_fovea_boxes[i].clone().cpu().numpy()
+                    #     x0, y0, x1, y1 = _box
+                    #     x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+                    #     cv2.rectangle(_temp_fovea_img2, (x0, y0), (x1, y1), (0, 255, 0), 1)
+                    #     cv2.putText(_temp_fovea_img2, f'{i}', (x0, y0), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                    # cv2.imwrite(f'{TEMP_FOVEA_IMAGE_OUTPUT_PATH}/frame_{self.im_index}_comp_fovea.jpg', _temp_fovea_img2)
 
                 
 

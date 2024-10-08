@@ -83,4 +83,6 @@ tracker:
 
   frog_logger_path: none
 
+  frog_fovea_oracle: False
+
 oracle: null

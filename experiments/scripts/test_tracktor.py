@@ -31,7 +31,15 @@ from PIL import Image
 
 mm.lap.default_solver = 'lap'
 
-CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0917.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1007_01.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_04.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_03.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_02.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_01.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004_03.yaml'
+CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004_02.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0917.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0914.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0912.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0911.yaml'
@@ -40,6 +48,7 @@ CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0917.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0901.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_origin.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_origin_down4.0.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_origin_down3.0.yaml'
 
 ex = Experiment()
 
@@ -121,7 +130,7 @@ def main(module_name, name, seed, obj_detect_models, reid_models,
             FOVEA_OBJ_DETECT_MODEL_PATH = tracker['frog_fovea_obj_detect_model_path']
         except:
             print("No fovea obj detect model path found, use default path")
-            FOVEA_OBJ_DETECT_MODEL_PATH = 'output/faster_rcnn_fpn_training_mot_17/fovea_0909_02_model_epoch_20.model'
+            FOVEA_OBJ_DETECT_MODEL_PATH = 'output/faster_rcnn_fpn_training_mot_17/fovea_0910_03_model_epoch_20.model'
         print(f"Loading fovea obj detect model from {FOVEA_OBJ_DETECT_MODEL_PATH}")
         origin_obj_detect_state_dict = torch.load(FOVEA_OBJ_DETECT_MODEL_PATH, map_location=lambda storage, loc: storage)
 
