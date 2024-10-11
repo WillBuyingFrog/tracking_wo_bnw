@@ -31,13 +31,14 @@ from PIL import Image
 
 mm.lap.default_solver = 'lap'
 
+CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1010_01.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1007_01.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_04.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_03.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_02.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1006_01.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004_03.yaml'
-CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004_02.yaml'
+# CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004_02.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_1004.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0917.yaml'
 # CONFIG_FILE = 'experiments/cfgs/tracktor_fovea_0914.yaml'

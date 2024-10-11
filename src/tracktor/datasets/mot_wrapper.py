@@ -16,7 +16,7 @@ class MOT17Wrapper(Dataset):
 		split -- the split of the dataset to use
 		dataloader -- args for the MOT_Sequence dataloader
 		"""
-		mot_dir = 'MOT17-down4.0'
+		mot_dir = 'MOT17-down2.875'
 		train_sequences = ['MOT17-02', 'MOT17-04', 'MOT17-05', 'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 		test_sequences = ['MOT17-01', 'MOT17-03', 'MOT17-06', 'MOT17-07', 'MOT17-08', 'MOT17-12', 'MOT17-14']
 
